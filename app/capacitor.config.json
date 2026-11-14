@@ -1,0 +1,14 @@
+{
+  "appId": "com.erenault.app",
+  "appName": "Erenault",
+  "webDir": "www",
+  "server": {
+    "url": "https://GITHUB_KULLANICI.github.io/erenault/",
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#212629"
+  }
+}
