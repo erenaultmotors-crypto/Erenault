@@ -978,7 +978,7 @@ function b64FromI16(i16){let s='';const u=new Uint8Array(i16.buffer);for(let i=0
 function i16FromB64(b){const s=atob(b),u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return new Int16Array(u.buffer)}
 async function liveStart(){
   if(LIVE.ws)return;liveSet('connecting','Bağlanıyor…');
-  let tok;try{tok=await api('apiAiToken',AUTHO())}catch(e){liveSet('off',/NOKEY/.test(String(e&&e.message))?'Asistan anahtarı sunucuya eklenmemiş (Proje ayarları → GEMINI_KEY).':'Asistana bağlanılamadı: '+errMsg(e));return}
+  let tok;try{tok=await api('apiAiToken',AUTHO())}catch(e){const em=String(e&&e.message||e);liveSet('off',/NOKEY/.test(em)?'Asistan anahtarı sunucuya eklenmemiş (Proje ayarları → GEMINI_KEY).':/permission|izin|UrlFetchApp|external_request/i.test(em)?'Sunucunun internete çıkma izni yok. Apps Script\'te herhangi bir işlevi bir kez çalıştırıp izin verin. ('+em.slice(0,160)+')':'Asistana bağlanılamadı: '+em.slice(0,220));return}
   LIVE.demo=!!tok.demo;LIVE.alias={};
   try{LIVE.micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}})}catch(e){liveSet('off','Mikrofon izni verilmedi. Telefon ayarlarından Erenault için mikrofona izin verin.');return}
   LIVE.outCtx=LIVE.outCtx||new (window.AudioContext||window.webkitAudioContext)({sampleRate:24000});try{await LIVE.outCtx.resume()}catch(e){}
@@ -990,7 +990,7 @@ async function liveStart(){
       realtimeInputConfig:{automaticActivityDetection:{silenceDurationMs:700}}}}))};
   ws.onmessage=async ev=>{let m;try{m=JSON.parse(typeof ev.data==='string'?ev.data:await ev.data.text())}catch(e){return}liveMsg(m)};
   ws.onerror=()=>{};
-  ws.onclose=ev=>{const was=LIVE.state;liveStop(true);if(was!=='off'&&ev.code!==1000)liveSet('off',ev.reason?'Bağlantı kapandı: '+ev.reason.slice(0,120):'Bağlantı kapandı.')};
+  ws.onclose=ev=>{console.warn('live close',ev.code,ev.reason);const was=LIVE.state;liveStop(true);if(was!=='off'&&ev.code!==1000)liveSet('off',ev.reason?'Bağlantı kapandı: '+ev.reason.slice(0,120):'Bağlantı kapandı.')};
 }
 function liveMic(){const ctx=new (window.AudioContext||window.webkitAudioContext)({sampleRate:16000});LIVE.micCtx=ctx;const src=ctx.createMediaStreamSource(LIVE.micStream);
   const node=ctx.createScriptProcessor(2048,1,1);LIVE.micNode=node;src.connect(node);node.connect(ctx.destination);
