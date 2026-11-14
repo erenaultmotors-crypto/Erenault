@@ -50,7 +50,7 @@ function doPost(e) {
   var out;
   try {
     var b = JSON.parse((e && e.postData && e.postData.contents) || '{}');
-    var fns = { apiBoot: apiBoot, apiSetup: apiSetup, apiLogin: apiLogin, apiPull: apiPull, apiPush: apiPush, apiUpload: apiUpload, apiFile: apiFile,
+    var fns = { apiPushToken: apiPushToken, apiBoot: apiBoot, apiSetup: apiSetup, apiLogin: apiLogin, apiPull: apiPull, apiPush: apiPush, apiUpload: apiUpload, apiFile: apiFile,
       apiPubFile: apiPubFile, apiSigData: apiSigData, apiSavePdf: apiSavePdf, apiAiToken: apiAiToken, apiSubmitQuote: apiSubmitQuote, apiSign: apiSign };
     if (!fns[b.fn]) throw new Error('NOFN');
     out = { ok: true, r: fns[b.fn].apply(null, b.args || []) };
@@ -298,6 +298,12 @@ function pushSales(u, role, items, dels) {
     }
     s.rev = Date.now();
     writeSale(db, s);
+    var had = {}; ((cur && cur.jobs) || []).forEach(function (j) { had[j.id] = 1; });
+    (s.jobs || []).forEach(function (j) { if (!had[j.id] && j.to && j.to !== u.id) pushTo([j.to], 'Yeni iş: ' + (JOBK[j.kind] || 'İş'), (s.customer.name || '') + ' · ' + (s.engine || '') + (j.note ? ' · ' + j.note : ''), 'isler'); });
+    if (role === 'worker' && cur) (s.jobs || []).forEach(function (j) {
+      var o = null; (cur.jobs || []).forEach(function (x) { if (x.id === j.id) o = x; });
+      if (o && o.status !== j.status && (j.status === 'hazir' || j.status === 'teslim' || j.status === 'parca')) pushTo('owner', u.name + ': ' + (JOBS_ST[j.status] || j.status), (JOBK[j.kind] || '') + ' · ' + (s.customer.name || ''), 'isler');
+    });
   });
   if (role === 'owner' && dels.length) {
     var rows = [];
@@ -432,6 +438,7 @@ function pushPings(u, role, meta, items) {
       if (role !== 'owner') return;
       x = { id: clip(it.id, 40), to: clip(it.to, 30), by: u.name, t: it.t || new Date().toISOString(), answered: false };
       list.push(x); byId[x.id] = x;
+      pushTo([x.to], u.name + ' durum soruyor', 'İşlerin ne durumda? Dokunup cevaplayın.', 'isler');
       return;
     }
     if (u.id === x.to) {
@@ -463,6 +470,9 @@ function pushMsgs(u, role, items) {
         lat: it.loc.lat != null ? Number(it.loc.lat) : undefined, lng: it.loc.lng != null ? Number(it.loc.lng) : undefined, acc: Number(it.loc.acc) || undefined };
       m.rev = Date.now();
       writeMsg(db, m);
+      var prev = m.text ? m.text.slice(0, 120) : m.audio ? '🎤 Sesli mesaj' : m.photo ? '📷 Fotoğraf' : m.doc ? '📎 ' + m.doc.name : m.loc ? '📍 Konum' : '';
+      pushTo(m.to === 'ekip' ? users.filter(function (x) { return x.id !== u.id; }).map(function (x) { return x.id; }) : [m.to],
+        u.name + (m.to === 'ekip' ? ' · Ekip' : ''), prev, 'mesaj');
       return;
     }
     var m2 = hit.m, ch = false;
@@ -596,6 +606,7 @@ function apiSubmitQuote(d) {
     writeSale(db, s);
     notify('Yeni teklif: ' + name + ' · ' + money(s.total),
       name + ' (' + phone + ') yeni bir motor teklifi gönderdi.\n\nMotor: ' + s.engine + '\nAdet: ' + (s.qty || 1) + '\nEski motor: ' + ({ getirdi: 'getirecek', sonra: 'sonra getirecek (depozito)', yok: 'teslim edilmeyecek' })[s.core] + '\nToplam: ' + money(s.total) + '\nSatış no: ' + s.no);
+    pushTo('staff', 'Yeni teklif: ' + name, s.engine + ' · ' + money(s.total), 'satislar');
     return { no: s.no, total: s.total };
   } finally { lock.releaseLock(); }
 }
@@ -641,6 +652,8 @@ function apiSign(token, d) {
     s.rev = Date.now();
     writeSale(db, s);
     try { srvFill(db); } catch (err) { }
+    pushTo('staff', 'Sözleşme imzalandı: ' + name, s.no + ' · ' + money(s.total), 'satislar');
+    (s.jobs || []).forEach(function (j) { if (j.to) pushTo([j.to], 'Yeni iş: ' + (JOBK[j.kind] || 'İş'), (s.customer.name || '') + ' · ' + (s.engine || ''), 'isler'); });
     notify('Sözleşme imzalandı: ' + name + ' · ' + money(s.total),
       name + ', ' + s.no + ' numaralı sözleşmeyi okudu ve imzaladı.\n\n' +
       'Motor: ' + s.engine + '\nToplam: ' + money(s.total) +
@@ -835,6 +848,8 @@ function pushColls(u, role, colls) {
       }
       if (n === 'units') { if (!engines[rec.eid]) return; unitsTouched = true; }
       st.put(n, rec);
+      if (!cur && n === 'pos' && rec.status === 'onay') pushTo('owner', 'Onay bekleyen sipariş', (rec.reqBy || '') + ' · ' + (sups[rec.sup] ? sups[rec.sup].name : '') + ' · ' + (rec.lines || []).map(function (l) { return l.name + ' ' + l.qty; }).join(', '), 'stok');
+      if (!cur && n === 'unitLog' && role !== 'owner') pushTo('owner', rec.by + ': ' + rec.n + ' motor hazırlandı', (engines[rec.eid] || {}).name || '', 'stok');
     });
     if (role === 'owner' && ch.dl && ch.dl.length) {
       if (!meta) meta = getMeta();
@@ -903,6 +918,64 @@ function srvFill(db, st) {
   });
   for (var k in changedUnits) st.put('units', changedUnits[k]);
   for (var k2 in changedSales) { changedSales[k2].rev = Date.now(); writeSale(db, changedSales[k2]); }
+}
+
+/* ===================== Telefon bildirimleri (Firebase) ===================== */
+var FCM_PROJECT = 'erenault-ddf45';
+
+// Uygulama açılınca telefonun bildirim adresini kaydeder
+function apiPushToken(a, token) {
+  var u = authU(a);
+  token = clip(token, 400);
+  if (token.length < 20) return false;
+  var k = 'PT_' + u.id, list = [];
+  try { list = JSON.parse(props().getProperty(k) || '[]'); } catch (e) { }
+  list = list.filter(function (t) { return t !== token; });
+  list.unshift(token);
+  props().setProperty(k, JSON.stringify(list.slice(0, 4)));
+  return true;
+}
+
+// uids: kişi id listesi veya 'owner' / 'staff' / 'all'
+function pushTo(uids, title, body, tab) {
+  try {
+    var users = getUsers(), ids = [];
+    (Array.isArray(uids) ? uids : [uids]).forEach(function (x) {
+      if (x === 'owner' || x === 'staff' || x === 'all') users.forEach(function (u) { var r = roleOf(u); if (x === 'all' || r === x || (x === 'staff' && r === 'owner')) ids.push(u.id); });
+      else ids.push(x);
+    });
+    var seen = {}, reqs = [], who = [];
+    var tok = ScriptApp.getOAuthToken();
+    ids.forEach(function (id) {
+      if (seen[id]) return; seen[id] = 1;
+      var list = []; try { list = JSON.parse(props().getProperty('PT_' + id) || '[]'); } catch (e) { }
+      list.forEach(function (t) {
+        reqs.push({ url: 'https://fcm.googleapis.com/v1/projects/' + FCM_PROJECT + '/messages:send', method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+          headers: { Authorization: 'Bearer ' + tok, 'x-goog-user-project': FCM_PROJECT },
+          payload: JSON.stringify({ message: { token: t, notification: { title: clip(title, 80), body: clip(body, 200) }, data: { tab: tab || '' },
+            android: { priority: 'HIGH', notification: { channel_id: 'erenault', sound: 'default' } } } }) });
+        who.push([id, t]);
+      });
+    });
+    if (!reqs.length) return;
+    var res = UrlFetchApp.fetchAll(reqs), drop = {};
+    res.forEach(function (r, i) {
+      var c = r.getResponseCode();
+      if (c === 404 || (c === 400 && /UNREGISTERED|INVALID_ARGUMENT/.test(r.getContentText()))) (drop[who[i][0]] = drop[who[i][0]] || []).push(who[i][1]);
+      else if (c >= 300) console.warn('FCM ' + c + ' ' + r.getContentText().slice(0, 300));
+    });
+    for (var id in drop) {
+      var l = []; try { l = JSON.parse(props().getProperty('PT_' + id) || '[]'); } catch (e) { }
+      props().setProperty('PT_' + id, JSON.stringify(l.filter(function (t) { return drop[id].indexOf(t) < 0; })));
+    }
+  } catch (e) { console.warn('bildirim: ' + e); }
+}
+
+// Bildirimleri denemek için: Apps Script'te bu işlevi seçip Çalıştır'a basın
+function bildirimDene() {
+  var n = 0; getUsers().forEach(function (u) { if (props().getProperty('PT_' + u.id)) n++; });
+  pushTo('all', 'Erenault', 'Bildirimler çalışıyor ✓', 'bildirim');
+  console.log('Bildirim kaydı olan kişi sayısı: ' + n);
 }
 
 /* ===================== Yapay zeka asistanı (sadece patron) ===================== */

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "642377570806",
+    "project_id": "erenault-ddf45",
+    "storage_bucket": "erenault-ddf45.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:642377570806:android:007a3a557ef1933446cfd7",
+        "android_client_info": {
+          "package_name": "com.erenault.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCdNMAJCJLzU1y3y9PNvuBdz8PcqLv7xBo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

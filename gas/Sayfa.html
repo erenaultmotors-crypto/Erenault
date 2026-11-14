@@ -732,12 +732,22 @@ async function pull(force){if(!CUR||syncing||syncTimer||pulling)return;pulling=t
 function resetData(){STOCK={};CL.forEach(n=>S[n]=[]);base={sales:{},msgs:{},pings:{},users:{},cat:null,pinned:null,c:{}};since=0;S.sales=[];S.msgs=[];S.pings=[];S.pinned=null;PINPUSHED={}}
 function logoutHard(msg){try{localStorage.removeItem('eo-auth')}catch(e){}const us=S.users.map(u=>({id:u.id,name:u.name,role:u.role}));AUTHU=null;AUTHP='';resetData();S.users=us;setUser(null);msgConv=null;loginSel=null;render();if(msg)toast(msg)}
 let loginBusy=false;
+async function pushSetup(){const CP=window.Capacitor&&window.Capacitor.Plugins,PN=CP&&CP.PushNotifications;if(!PN||!CUR)return;
+  try{if(!window.__pnInit){window.__pnInit=true;
+      PN.addListener('registration',t=>{api('apiPushToken',AUTHO(),t.value).catch(()=>{})});
+      PN.addListener('registrationError',e=>console.warn('push',e));
+      PN.addListener('pushNotificationReceived',n=>{toast((n.title||'')+(n.body?': '+n.body:''));pull(true)});
+      PN.addListener('pushNotificationActionPerformed',a=>{const tab=((a.notification||{}).data||{}).tab;pull(true);
+        if(tab==='mesaj')location.hash='mesaj';else if(ROLE==='worker')location.hash='isler';else if(tab){panelTab=tab;location.hash='panel'}render()});
+      try{await PN.createChannel({id:'erenault',name:'Erenault',description:'Mesajlar, işler, teklifler',importance:5,visibility:1,sound:'default',vibration:true})}catch(e){}}
+    let p=await PN.checkPermissions();if(p.receive==='prompt'||p.receive==='prompt-with-rationale')p=await PN.requestPermissions();
+    if(p.receive==='granted')await PN.register();else toast('Bildirim izni kapalı. Telefon ayarlarından Erenault için bildirimlere izin verin.')}catch(e){console.warn('push',e)}}
 async function doLogin(uid,pin,silent){
   loginBusy=true;loginErr2='';if(!silent)render();
   try{const r=await api('apiLogin',{u:uid,p:pin});AUTHU=uid;AUTHP=pin;storeAuth();INFO={sheetUrl:r.sheetUrl,folderUrl:r.folderUrl,email:r.email};
     resetData();ROLE=r.role;CUR={id:uid};applyPull(r);since=r.now-60000;lastPull=Date.now();
     const me=S.users.find(u=>u.id===uid);setUser(me);loginSel=null;loginBusy=false;Q=newQ();panelTab='satislar';pipeFilter='geldi';
-    location.hash=ROLE==='worker'?'isler':'panel';render();if(!silent)toast('Hoş geldiniz, '+me.name);if(ROLE==='owner'&&base.cat===null)save()}
+    location.hash=ROLE==='worker'?'isler':'panel';render();setTimeout(pushSetup,1500);if(!silent)toast('Hoş geldiniz, '+me.name);if(ROLE==='owner'&&base.cat===null)save()}
   catch(e){loginBusy=false;CUR=null;try{localStorage.removeItem('eo-auth')}catch(x){}loginErr2=errMsg(e);render()}
 }
 

@@ -52,6 +52,7 @@ jobs:
           node -e "const f='capacitor.config.json',c=require('./'+f);c.server.url=process.argv[1];require('fs').writeFileSync(f,JSON.stringify(c,null,2))" "$URL"
           echo "Uygulama adresi: $URL"
           npx cap add android
+          cp google-services.json android/app/google-services.json
           npx capacitor-assets generate --android --iconBackgroundColor '#212629' --splashBackgroundColor '#212629'
           M=android/app/src/main/AndroidManifest.xml
           for P in RECORD_AUDIO MODIFY_AUDIO_SETTINGS CAMERA ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION POST_NOTIFICATIONS; do
