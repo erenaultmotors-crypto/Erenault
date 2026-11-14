@@ -21,7 +21,8 @@
 
 var TZ = 'Europe/Istanbul';
 var CORE = { getirdi: 1, sonra: 1, yok: 1 };
-var COLLS = ['pos', 'supPays', 'stockLog', 'esnaf', 'units', 'prepOrders', 'unitLog', 'aiPending', 'aiLog'];
+var COLLS = ['pos', 'supPays', 'stockLog', 'esnaf', 'units', 'prepOrders', 'unitLog', 'aiPending', 'aiLog', 'tasks'];
+var TASK_W = ['status', 'hist', 'photo', 'wSeen', 'seenAt', 'doneAt', 'pSeen', 'doneQty', 'unitsAdded'];
 var KCOLS = ['Tür', 'Zaman', 'Özet', 'id', 'veri (dokunmayın)'];
 
 var STATUS = { gonderildi: 'Form gönderildi', geldi: 'Teklif geldi', satildi: 'Satıldı', teslim: 'Teslim edildi' };
@@ -777,6 +778,7 @@ function storeSummary(c, r) {
   if (c === 'esnaf') return (r.shop || '') + ' · ' + (r.name || '');
   if (c === 'supPays') return (sup[r.sup] || '') + ' · ' + money(r.amt);
   if (c === 'aiLog') return r.title || '';
+  if (c === 'tasks') { var us = {}; getUsers().forEach(function (x) { us[x.id] = x.name; }); return (us[r.to] || '') + ' · ' + (r.title || '') + ' · ' + (JOBS_ST[r.status] || r.status); }
   if (c === 'aiPending') return (r.status || '') + ' · ' + (r.title || '');
   return '';
 }
@@ -789,6 +791,7 @@ function collView(n, r, u, role) {
   if (role === 'owner') return r;
   if (n === 'supPays' || n === 'aiPending' || n === 'aiLog') return null;
   if (role === 'worker') {
+    if (n === 'tasks') return r.to === u.id ? r : null;
     if (!canPrep(u) || ['units', 'prepOrders', 'unitLog'].indexOf(n) < 0) return null;
     if (n === 'unitLog' && r.by !== u.name) return null;
     return r;
@@ -809,7 +812,8 @@ function pushColls(u, role, colls) {
   (C.parts || []).forEach(function (p) { parts[p.id] = p; });
   (C.engines || []).forEach(function (e) { engines[e.id] = e; });
   (C.suppliers || []).forEach(function (t) { sups[t.id] = t; });
-  var now = new Date().toISOString(), prep = role === 'worker' && canPrep(u), db = null, unitsTouched = false;
+  var now = new Date().toISOString(), db = null, unitsTouched = false;
+  var prep = role === 'worker' && (canPrep(u) || st.list('tasks').some(function (t) { return t.to === u.id && t.kind === 'hazirlama'; }));
   function sales() { if (!db) db = readSales(); return db; }
   COLLS.forEach(function (n) {
     var ch = colls[n]; if (!ch) return;
@@ -817,6 +821,29 @@ function pushColls(u, role, colls) {
       if (!it || !it.id) return;
       it.id = clip(it.id, 40);
       var cur = st.get(n, it.id), rec = null;
+      if (n === 'tasks') {
+        rec = null;
+        if (role === 'owner') {
+          rec = it;
+          if (!cur || cur.to !== it.to) pushTo([it.to], 'Yeni iş', clip(it.title || it.note || '', 120), 'isler');
+        } else if (role === 'worker' && cur && cur.to === u.id) {
+          rec = JSON.parse(JSON.stringify(cur));
+          TASK_W.forEach(function (f) { if (it[f] !== undefined) rec[f] = it[f]; });
+          if (!JOBS_ST[rec.status]) rec.status = cur.status;
+          if (cur.status !== rec.status) {
+            var dn = rec.status === 'hazir' || rec.status === 'teslim';
+            pushTo('owner', u.name + ': ' + (dn ? 'Bitti' : JOBS_ST[rec.status] || ''), clip(rec.title || '', 100) + (dn && rec.doneQty != null && rec.kind === 'hazirlama' ? ' · ' + rec.doneQty + ' adet' : ''), 'isler');
+            if (dn && rec.grp) st.list('tasks').forEach(function (x) {
+              if (x.grp === rec.grp && x.id !== rec.id && x.status !== 'hazir' && x.status !== 'teslim') {
+                var y = JSON.parse(JSON.stringify(x)); y.status = 'hazir'; y.doneAt = now; y.unitsAdded = true; y.doneQty = rec.doneQty;
+                y.hist = (y.hist || []).concat([{ t: now, u: 'Sistem', st: 'hazir', note: u.name + ' bitirdi' }]); st.put('tasks', y);
+              }
+            });
+          }
+        }
+        if (rec) st.put(n, rec);
+        return;
+      }
       if (role === 'owner') {
         rec = it;
         if (n === 'stockLog' && cur) rec = null; // hareketler değişmez
