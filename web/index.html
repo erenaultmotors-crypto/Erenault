@@ -625,7 +625,7 @@ function defaults(){
       EN('e5','Kangoo · 1.5 dCi','K9K',55000,5500,'Kangoo, Clio, Megane için 1.5 dCi revizyonlu motor.',[['p1',1],['p2',1],['p3',1],['p4',1],['p5',1],['p7',1],['p8',1],['p9',1],['p11',1],['p12',8],['p14',4]]),
       EN('e6','Trafic 3 · 1.6 dCi','R9M',90000,7500,'Trafic 3 için 1.6 dCi revizyonlu motor. Zincir seti ve eksantrikler sıfır.',[['p1',1],['p2',1],['p3',1],['p4',1],['p5',1],['p6',1],['p7',2],['p8',1],['p9',1],['p10',1],['p11',1],['p12',16],['p14',4]])
     ],
-    pos:[],supPays:[],stockLog:[],esnaf:[],aiPending:[],aiLog:[],aiChat:[],tasks:[],
+    pos:[],supPays:[],stockLog:[],esnaf:[],aiPending:[],aiLog:[],aiChat:[],tasks:[],aiMem:[],reminders:[],
     sales:[], active:null
   };
 }
@@ -635,7 +635,7 @@ let S;
 /* ===== Google eşitleme ===== */
 if(!window.claude)window.claude={use:async n=>n==='downloads'?{save:async({filename,data})=>{const CP=window.Capacitor&&window.Capacitor.Plugins;if(CP&&CP.Filesystem&&CP.Share){const b64=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).split(',')[1]);fr.onerror=rej;fr.readAsDataURL(data)});const w=await CP.Filesystem.writeFile({path:filename,data:b64,directory:'CACHE'});await CP.Share.share({title:filename,url:w.uri,dialogTitle:'Kaydet veya gönder'});return}const u=URL.createObjectURL(data);const a=document.createElement('a');a.href=u;a.download=filename;a.target='_blank';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(u);a.remove()},8000)}}:null};
 let AUTHU=null,AUTHP='',INFO={},base={sales:{},msgs:{},pings:{},users:{},cat:null,pinned:null,c:{}},since=0,syncTimer=null,syncing=false,syncAgain=false,lastSync='ok',pulling=false,lastPull=0,PINPUSHED={},MEDIA={},MEDIAQ={};
-const J=JSON.stringify,COLL=['jobs','pays'],CL=['pos','supPays','stockLog','esnaf','units','prepOrders','unitLog','aiPending','aiLog','tasks'];let STOCK={};
+const J=JSON.stringify,COLL=['jobs','pays'],CL=['pos','supPays','stockLog','esnaf','units','prepOrders','unitLog','aiPending','aiLog','tasks','aiMem','reminders'];let STOCK={};
 function api(fn,...args){if(window.google&&google.script&&google.script.run)return new Promise((res,rej)=>{google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](...args)});
   return fetch(BOOT.api,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({fn,args}),redirect:'follow'}).then(r=>{if(!r.ok)throw new Error('NET '+r.status);return r.json()}).then(j=>{if(!j.ok)throw new Error(j.e);return j.r})}
 function AUTHO(){return{u:AUTHU,p:AUTHP}}
@@ -716,6 +716,7 @@ function applyPull(r,sent){
       nu.push(u);base.users[srv.id]=J(userCore(srv))});
     if(ROLE==='owner')S.users.forEach(u=>{if(!seen.has(u.id)&&!base.users[u.id])nu.push(u)});Object.keys(base.users).forEach(id=>{if(!seen.has(id))delete base.users[id]});S.users=nu}
   if(r.pinned!==undefined){if((S.pinned||null)===base.pinned)S.pinned=r.pinned;base.pinned=r.pinned||null}
+  if(r.report)S.aiReport=r.report;
   if(r.stock){STOCK=r.stock;(S.parts||[]).forEach(p=>{p.stock=+STOCK[p.id]||0})}
   if(r.colls||sent.c){const sc=sent.c||{};CL.forEach(n=>{S[n]=S[n]||[];const B=base.c[n]=base.c[n]||{},back=new Set();
     ((r.colls||{})[n]||[]).forEach(srv=>{back.add(srv.id);const i=S[n].findIndex(x=>x.id===srv.id);const nl=mergeRec(i>=0?S[n][i]:null,B[srv.id],srv,(sc[n]||{})[srv.id]);if(i>=0)S[n][i]=nl;else S[n].push(nl);B[srv.id]=J(srv)});
@@ -736,6 +737,12 @@ async function pull(force){if(!CUR||syncing||syncTimer||pulling)return;pulling=t
 function resetData(){STOCK={};CL.forEach(n=>S[n]=[]);base={sales:{},msgs:{},pings:{},users:{},cat:null,pinned:null,c:{}};since=0;S.sales=[];S.msgs=[];S.pings=[];S.pinned=null;PINPUSHED={}}
 function logoutHard(msg){try{localStorage.removeItem('eo-auth')}catch(e){}const us=S.users.map(u=>({id:u.id,name:u.name,role:u.role}));AUTHU=null;AUTHP='';resetData();S.users=us;setUser(null);msgConv=null;loginSel=null;render();if(msg)toast(msg)}
 let loginBusy=false;
+let __linkInit=false;
+function appOpenHook(){if(ROLE!=='owner')return;const CP=window.Capacitor&&window.Capacitor.Plugins,App=CP&&CP.App;const go=u=>{if(String(u||'').includes('asistan'))aiAutoOpen(true)};
+  if(App&&!__linkInit){__linkInit=true;App.addListener('appUrlOpen',e=>go(e.url));
+    App.getLaunchUrl().then(r=>{if(r&&r.url&&String(r.url).includes('asistan'))go(r.url);else if(aiAutoGet())aiAutoOpen(true)}).catch(()=>{if(aiAutoGet())aiAutoOpen(true)});
+    App.addListener('resume',()=>{if(aiAutoGet()&&!LIVE.ws)aiAutoOpen(true)})}
+  else if(!App&&aiAutoGet())aiAutoOpen(true)}
 async function pushSetup(){const CP=window.Capacitor&&window.Capacitor.Plugins,PN=CP&&CP.PushNotifications;if(!PN||!CUR)return;
   try{if(!window.__pnInit){window.__pnInit=true;
       PN.addListener('registration',t=>{api('apiPushToken',AUTHO(),t.value).catch(()=>{})});
@@ -751,7 +758,7 @@ async function doLogin(uid,pin,silent){
   try{const r=await api('apiLogin',{u:uid,p:pin});AUTHU=uid;AUTHP=pin;storeAuth();INFO={sheetUrl:r.sheetUrl,folderUrl:r.folderUrl,email:r.email};
     resetData();ROLE=r.role;CUR={id:uid};applyPull(r);since=r.now-60000;lastPull=Date.now();
     const me=S.users.find(u=>u.id===uid);setUser(me);loginSel=null;loginBusy=false;Q=newQ();panelTab='satislar';pipeFilter='geldi';
-    location.hash=ROLE==='worker'?'isler':'panel';render();setTimeout(pushSetup,1500);if(!silent)toast('Hoş geldiniz, '+me.name);if(ROLE==='owner'&&base.cat===null)save()}
+    location.hash=ROLE==='worker'?'isler':'panel';render();setTimeout(pushSetup,1500);setTimeout(appOpenHook,700);if(!silent)toast('Hoş geldiniz, '+me.name);if(ROLE==='owner'&&base.cat===null)save()}
   catch(e){loginBusy=false;CUR=null;try{localStorage.removeItem('eo-auth')}catch(x){}loginErr2=errMsg(e);render()}
 }
 
@@ -965,6 +972,12 @@ const MIC_BIG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
 let aiSeg='konus',aiTurns=[],aiBusy=false,aiState='idle',aiPartial='',aiBuf='',aiTimer=null,aiCtl=null,aiVoice=true,aiStatus='',AI={sample:undefined,dict:undefined,tts:undefined},aiLastUser='',aiInit=false;
 function trEk(n,t){n=String(n||'').trim();const v=(n.toLocaleLowerCase('tr').match(/[aeıioöuü]/g)||['e']).pop(),back='aıou'.includes(v),endV=/[aeıioöuü]$/i.test(n),hard=/[fstkçşhp]$/i.test(n);
   return n+"'"+(t==='e'?(endV?'y':'')+(back?'a':'e'):(hard?'t':'d')+(back?'an':'en'))}
+function fdt(s){try{return new Date(s).toLocaleString('tr-TR',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'})}catch(e){return s}}
+async function deepThink(q){const data=aiSnapshot(),scrub=x=>typeof liveScrub==='function'?liveScrub(x):x;
+  const mem=(S.aiMem||[]).map(m=>m.text);
+  if(typeof api==='function'&&typeof AUTHO==='function')return await api('apiAiThink',AUTHO(),String(q).slice(0,1000),scrub(data),scrub(mem));
+  if(AI.sample){const r=await AI.sample('Sen Eren Oto (Renault ticari motor revizyonu) için deneyimli bir işletme danışmanısın. Aşağıdaki güncel verilere bakarak patronun sorusunu cevapla. Somut, uygulanabilir 2-4 öneri ver; rakamları veriden al, uydurma. Türkçe, kısa paragraflar, madde işareti yok.\nPatronun notları: '+mem.join(' | ')+'\nSORU: '+q+'\nVERİ: '+data,{modelTier:'complex'});return r.text}
+  throw new Error('Derin düşünme bu görünümde kullanılamıyor')}
 function aiPend(){return (S.aiPending||[]).filter(p=>p.status==='bekliyor')}
 function fabGet(){try{return JSON.parse(localStorage.getItem('eo-fab')||'null')}catch(e){return null}}
 function fabPlace(b){const p=fabGet();if(!p){b.classList.remove('placed');b.style.left=b.style.top='';return}const W=innerWidth,H=innerHeight,bw=b.offsetWidth||140,bh=b.offsetHeight||56;
@@ -1111,8 +1124,23 @@ function aiTools(){if(!Object.keys(AI_READ_MAP).length){AI_TOOLS_READ.forEach(t=
   execute:i=>{const t=AI_ACT_MAP[String(i.tur)];if(!t||i.tur==='onayla'||i.tur==='iptal')throw new Error('Bilinmeyen işlem türü');const a={...i};if(i.tur==='is_ata')a.tur=i.is_turu||'diger';return t.execute(a)}},
  {name:'onay_cevabi',description:'Patron bekleyen işleme cevap verdiğinde çağır. karar: evet (patron evet/tamam/yap dedi) veya hayir (hayır/dur/vazgeç dedi). Patron cevap vermeden ASLA evet ile çağırma.',
   inputSchema:{type:'object',properties:{onay_id:{type:'string'},karar:{type:'string',enum:['evet','hayir']}},required:['onay_id','karar']},
-  execute:i=>AI_ACT_MAP[i.karar==='evet'?'onayla':'iptal'].execute({onay_id:i.onay_id})}]}
-function aiSnapshot(){const o={};['gunluk_ozet','calisanlar','stok','odemeler'].forEach(k=>{try{o[k]=AI_TOOLS_READ.find(t=>t.name===k).execute({})}catch(e){}});try{o.acik_isler=AI_TOOLS_READ.find(t=>t.name==='isler').execute({durum:'acik'})}catch(e){}return JSON.stringify(o).slice(0,60000)}
+  execute:i=>AI_ACT_MAP[i.karar==='evet'?'onayla':'iptal'].execute({onay_id:i.onay_id})},
+ {name:'hafiza',description:'Patronun öğrettiği kalıcı notlar. islem: ekle (metin ile, onaysız yapılır), listele, sil (id ile, onay ister).',
+  inputSchema:{type:'object',properties:{islem:{type:'string',enum:['ekle','listele','sil']},metin:{type:'string'},id:{type:'string'}},required:['islem']},
+  execute:i=>{if(i.islem==='listele')return (S.aiMem||[]).map(m=>({id:m.id,not:m.text}));
+    if(i.islem==='ekle'){const tx=String(i.metin||'').trim().slice(0,300);if(!tx)throw new Error('Not metni yok');const m={id:rid(),text:tx,t:new Date().toISOString(),by:CUR.name};(S.aiMem=S.aiMem||[]).push(m);(S.aiLog=S.aiLog||[]).push({t:m.t,title:'Not alındı: '+tx,result:'hafızaya eklendi',kind:'mem'});save();aiPaint();return 'not alındı'}
+    if(i.islem==='sil'){const m=(S.aiMem||[]).find(x=>x.id===String(i.id));if(!m)throw new Error('Not bulunamadı; önce listele');return aiQueue('memdel','Notu sil: "'+m.text.slice(0,80)+'"',{id:m.id})}
+    throw new Error('Bilinmeyen işlem')}},
+ {name:'hatirlat',description:'Patrona belirtilen zamanda telefon bildirimiyle hatırlatma kurar (onaysız). zaman: YYYY-AA-GGTSS:DD Türkiye saati.',
+  inputSchema:{type:'object',properties:{metin:{type:'string'},zaman:{type:'string'}},required:['metin','zaman']},
+  execute:i=>{const d=new Date(String(i.zaman));if(isNaN(d))throw new Error('Zaman anlaşılamadı; tarih ve saati sor');if(d.getTime()<Date.now()-60000)throw new Error('Bu zaman geçmişte');
+    const r={id:rid(),text:String(i.metin).slice(0,300),at:d.toISOString(),done:false,t:new Date().toISOString()};(S.reminders=S.reminders||[]).push(r);(S.aiLog=S.aiLog||[]).push({t:r.t,title:'Hatırlatma kuruldu: '+r.text,result:fdt(r.at),kind:'rem'});save();aiPaint();return 'kuruldu: '+fdt(r.at)}},
+ {name:'derin_dusun',description:'Öncelik, plan, strateji, iş dağıtımı, stok/sipariş planlaması gibi düşünmek gereken sorularda güncel tüm verilerle derinlemesine analiz yapar ve öneri üretir. 5-15 saniye sürer.',
+  inputSchema:{type:'object',properties:{soru:{type:'string'}},required:['soru']},
+  execute:async i=>({analiz:await deepThink(i.soru)})}]}
+function aiAutoGet(){try{return localStorage.getItem('eo-autolisten')==='1'}catch(e){return false}}
+function aiAutoOpen(listen){if(ROLE!=='owner')return;panelTab='asistan';aiSeg='konus';if(location.hash!=='#panel')location.hash='panel';render();if(listen&&typeof liveStart==='function'&&!LIVE.ws)setTimeout(liveStart,500)}
+function aiSnapshot(){const o={};['gunluk_ozet','calisanlar','stok','odemeler','hazir_motorlar'].forEach(k=>{try{o[k]=AI_TOOLS_READ.find(t=>t.name===k).execute({})}catch(e){}});try{o.acik_isler=AI_TOOLS_READ.find(t=>t.name==='isler').execute({durum:'acik'})}catch(e){}return JSON.stringify(o).slice(0,60000)}
 function aiQueue(kind,title,args){const dup=(S.aiPending||[]).find(x=>x.status==='bekliyor'&&x.kind===kind&&JSON.stringify(x.args)===JSON.stringify(args));if(dup){dup.turn=aiTurnNo;save();return{onay_id:dup.id,ozet:dup.title,talimat:'Bu işlem zaten onay bekliyor. Patrona tek kısa cümleyle onay sor.'}}const p={id:rid().slice(0,6),t:new Date().toISOString(),kind,title,args,status:'bekliyor',turn:aiTurnNo};(S.aiPending=S.aiPending||[]).push(p);save();aiPaint();
   return{onay_id:p.id,ozet:title,talimat:'İşlem HENÜZ YAPILMADI. Patrona tek kısa cümleyle onay sor. Evet derse onayla aracını bu onay_id ile çağır.'}}
 const AI_TOOLS_ACT=[
@@ -1171,6 +1199,7 @@ function aiRun(p){if(p.status!=='bekliyor')return 'Bu işlem zaten '+(p.status==
   else if(p.kind==='esnaf'){const e=(S.esnaf||[]).find(x=>x.id===a.eid);const q=newQ(a.engineId);q.qty=a.qty;q.core=a.core;q.name=e.shop;q.phone=e.phone;
     const s={id:'s'+Date.now(),no:nextNo(),token:rid(),kind:'esnaf',esnafId:e.id,customer:{name:e.shop,phone:e.phone,plate:''},status:'satildi',dates:{geldi:today(),satildi:today()},seen:true,approved:{u:CUR.name,t},...snapshot(q),delivery:{mode:e.addr?'adres':'dukkan',where:e.addr||''}};
     if(e.kvkk)s.kvkk={at:e.kvkk.at,how:'yuz',by:e.kvkk.by};s.by=CUR.name;S.sales.push(s);logAct(s,'Esnaf siparişi oluşturdu ('+a.qty+' adet)'+tag);if((S.settings.jobTrigger||'imza')!=='manuel')startJobs(s,true);reserveSale(s);res=s.no+' kaydedildi'}
+  else if(p.kind==='memdel'){S.aiMem=(S.aiMem||[]).filter(m=>m.id!==a.id)}
   else if(p.kind==='prep'){createTask({kind:'hazirlama',to:[a.to||S.settings.vekil].filter(Boolean),title:a.n+' adet '+engName(a.eid)+' hazırla',eid:a.eid,qty:a.n,due:a.due})}
   else if(p.kind==='task'){createTask({kind:a.kind,to:a.to,title:a.title,place:a.place||null,note:a.note||'',due:a.due})}
   else if(p.kind==='stok'){const pt=part(a.pid);pt.stock=(+pt.stock||0)+a.n;(S.stockLog=S.stockLog||[]).push({id:rid(),t,pid:pt.id,d:a.n,ref:'Asistan',by:CUR.name})}
@@ -1193,7 +1222,11 @@ KURALLAR:
 BAĞLAM: Bugün ${new Date().toLocaleDateString('tr-TR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}, saat ${new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}.
 Kişiler: ${S.users.map(u=>u.name+' ('+ROLES[u.role].split(' (')[0]+(u.task?', '+(TASKS[u.task]||''):'')+')').join(', ')}.
 Tedarikçiler: ${(S.suppliers||[]).map(t=>t.name).join(', ')||'yok'}. Esnaflar: ${(S.esnaf||[]).map(e=>e.shop).join(', ')||'yok'}. Motorlar: ${S.engines.map(e=>e.name).join(', ')}. Kayıtlı konumlar: ${places().map(p=>p.name).join(', ')||'yok'}.
-Onay bekleyen işlemler: ${aiPend().map(p=>p.id+': '+p.title).join(' | ')||'yok'}.`}
+Onay bekleyen işlemler: ${aiPend().map(p=>p.id+': '+p.title).join(' | ')||'yok'}.
+HAFIZA (patronun sana öğrettikleri; cevap ve önerilerinde bunlara uy): ${(S.aiMem||[]).map(m=>'- '+m.text).join(' ')||'henüz not yok'}.
+Bekleyen hatırlatmalar: ${(S.reminders||[]).filter(r=>!r.done).map(r=>fdt(r.at)+': '+r.text).join(' | ')||'yok'}.
+- Patron "bunu not al / unutma / aklında tutsun" derse hafiza aracıyla kaydet ve "Not aldım" de. "Bana ... hatırlat" derse hatirlat aracını kullan.
+- Öncelik, plan, strateji, "ne önerirsin", "stok yeter mi", "işleri nasıl dağıtalım" gibi düşünmek gereken sorularda derin_dusun aracını çağır ve sonucunu kısa, net, konuşur gibi aktar.`}
 async function aiAsk(text){if(LIVE.ok&&MODE==='app'){liveText(String(text||'').trim());return}text=String(text||'').trim();if(!text||aiBusy)return;await aiSetup();
   if(!AI.sample){aiStatus='Yapay zeka bu görünümde kullanılamıyor (claude.ai içinde açın).';aiPaint();return}
   aiLastUser=text;aiTurnNo++;(S.aiChat=S.aiChat||[]).push({r:'u',x:text,t:new Date().toISOString()});aiTurns.push({role:'user',content:text});
@@ -1217,10 +1250,19 @@ function aiCard(p){const po=p.po&&(S.pos||[]).find(x=>x.id===p.po),sup=po&&(S.su
   ${po&&p.status==='yapildi'?`<span class="pst ${po.sentAt?'ok':'late'}">${po.sentAt?'✓ WhatsApp mesajı gönderildi':'WhatsApp\'tan henüz gönderilmedi'}</span>`:''}${po&&sup&&sup.phone&&p.status==='yapildi'&&!po.sentAt?`<div class="row"><a class="btn sm wa" href="${waLink(sup.phone,poMsg(po))}" target="_blank" rel="noopener" data-posent="${po.id}">${WA_ICON}WhatsApp'tan gönder</a><button class="btn sm" data-act="popdf" data-id="${po.id}">PDF</button></div>`:''}</div>`}
 function pAsistan(){setTimeout(aiSetup,0);const pend=aiPend();
   let h=`<div class="section aiwrap"><div class="aihead"><span class="aiav ${aiState}">${AI_SVG}</span><div style="flex:1;min-width:0"><h2 style="margin:0">Asistan</h2><span class="small muted">Konuşun; bilgi verir, öneri yapar, onayınızla iş yapar.</span></div><label class="toggle small"><input type="checkbox" id="ai-voice" ${aiVoice?'checked':''}><span>Sesli cevap</span></label></div>
-  <div class="filt"><button data-act="aiseg" data-k="konus" aria-pressed="${aiSeg==='konus'}">Konuşma</button><button data-act="aiseg" data-k="onay" aria-pressed="${aiSeg==='onay'}">Onay bekleyenler${pend.length?` <span class="c">${pend.length}</span>`:''}</button><button data-act="aiseg" data-k="gecmis" aria-pressed="${aiSeg==='gecmis'}">İşlem geçmişi</button></div></div>`;
+  <div class="filt"><button data-act="aiseg" data-k="konus" aria-pressed="${aiSeg==='konus'}">Konuşma</button><button data-act="aiseg" data-k="onay" aria-pressed="${aiSeg==='onay'}">Onay bekleyenler${pend.length?` <span class="c">${pend.length}</span>`:''}</button><button data-act="aiseg" data-k="hafiza" aria-pressed="${aiSeg==='hafiza'}">Hafıza ve hatırlatma${(S.reminders||[]).filter(r=>!r.done).length?` <span class="c">${(S.reminders||[]).filter(r=>!r.done).length}</span>`:''}</button><button data-act="aiseg" data-k="gecmis" aria-pressed="${aiSeg==='gecmis'}">İşlem geçmişi</button></div>
+  <label class="toggle small"><input type="checkbox" id="ai-auto" ${aiAutoGet()?'checked':''}><span>Uygulama açılınca asistan hemen dinlesin</span></label></div>`;
+  if(aiSeg==='hafiza'){const M=(S.aiMem||[]).slice().reverse(),RM=(S.reminders||[]).slice().sort((a,b)=>(a.done-b.done)||String(a.at).localeCompare(String(b.at)));
+    h+=`<div class="section"><h3>Asistanın hafızası</h3><p class="small muted" style="margin:0">Asistana "bunu not al" dediğiniz bilgiler. Her konuşmada bunları bilir ve önerilerinde kullanır.</p>
+    <div class="row"><input type="text" id="mem-new" placeholder="Örn. Osman cuma günleri teslimat yapmıyor" style="flex:1;min-width:0"><button class="btn" data-act="memadd">Ekle</button></div>
+    <div class="ailog">${M.map(m=>`<div><time>${fdt(m.t)}</time>${esc(m.text)}<div>${delBtn('mem'+m.id,'memdel',`data-id="${m.id}"`,'Sil')}</div></div>`).join('')||'<div class="empty">Henüz not yok.</div>'}</div></div>
+    <div class="section"><h3>Hatırlatmalar</h3><p class="small muted" style="margin:0">Zamanı gelince telefonunuza bildirim gelir. Asistana "yarın 9'da bana ... hatırlat" diyebilirsiniz.</p>
+    <div class="form2"><label class="f"><span>Ne?</span><input type="text" id="rem-txt" placeholder="Örn. Burak Bey'i ara"></label><label class="f"><span>Ne zaman?</span><input type="datetime-local" id="rem-at"></label></div><div><button class="btn" data-act="remadd">Hatırlatma kur</button></div>
+    <div class="ailog">${RM.map(r=>`<div style="${r.done?'opacity:.6':''}"><time>${fdt(r.at)}${r.done?' · gönderildi':''}</time>${esc(r.text)}<div>${delBtn('rem'+r.id,'remdel',`data-id="${r.id}"`,'Sil')}</div></div>`).join('')||'<div class="empty">Hatırlatma yok.</div>'}</div></div>`;return h}
   if(aiSeg==='onay'){h+=`<div class="section">${pend.length>1?`<div><button class="btn pri" data-act="aiokall">Hepsini onayla (${pend.length})</button></div>`:''}${pend.map(aiCard).join('')||'<div class="empty">Onay bekleyen işlem yok. Asistana verdiğiniz ve henüz onaylamadığınız işler burada birikir.</div>'}</div>`;return h}
   if(aiSeg==='gecmis'){const L=(S.aiLog||[]).slice().reverse();h+=`<div class="section"><div class="ailog">${L.map(x=>`<div><time>${new Date(x.t).toLocaleString('tr-TR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</time>${esc(x.title)}<br><span class="small muted">${esc(x.result||'')}</span></div>`).join('')||'<div class="empty">Asistan henüz bir işlem yapmadı.</div>'}</div></div>`;return h}
   const C=(S.aiChat||[]).slice(-30);
+  if(S.aiReport&&S.aiReport.text&&(()=>{const d=new Date(S.aiReport.t);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')===today()})())h+=`<div class="section"><div class="aicard done"><span class="k">☀️ Sabah raporu · ${new Date(S.aiReport.t).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</span><div style="white-space:pre-wrap">${esc(S.aiReport.text)}</div></div></div>`;
   h+=`<div class="aithread" id="aithread">${C.length?'':`<div class="empty">Mikrofona dokunup konuşun. Örnekler: "Bugün kaç işimiz var?", "Ahmet'in üzerinde ne var?", "Stokta azalan ne var, Osman'a sipariş verelim", "Mehmet'e mesaj at, yanıma gelsin".</div>`}${C.map(m=>`<div class="aimsg ${m.r}"${m.live?' id="ailive"':''}>${esc(m.x||(m.live?'…':''))}</div>`).join('')}${aiPartial||aiBuf?`<div class="aimsg u partial">${esc((aiBuf+' '+aiPartial).trim())}</div>`:''}${pend.slice(-3).map(aiCard).join('')}</div>
   <div class="aibar"><button class="aimic${aiState==='listening'?' on':''}" data-act="aimic" aria-label="${aiState==='listening'?'Dinlemeyi bitir':'Konuşmak için dokunun'}">${aiBusy?'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>':MIC_BIG}</button>
   <div class="aistat" id="aistat">${esc(aiStatus||(aiBusy?'Düşünüyor…':LIVE.ws?'Dinliyorum… kapatmak için dokunun':AI.dict===null&&!LIVE.ok?'Bu görünümde mikrofon yok; aşağıya yazabilirsiniz.':'Konuşmak için dokunun'))}</div>
@@ -2273,6 +2315,11 @@ document.addEventListener('click',ev=>{
     const m=createTask({kind:f.kind,to:f.to,title,eid:f.kind==='hazirlama'?f.eid:'',qty:f.kind==='hazirlama'?Math.max(1,f.qty||1):0,place,note:f.kind==='diger'?'':f.note.trim(),due:f.due});
     taskForm=null;save();toast('İş verildi: '+m.map(x=>uname(x.to)).join(', '));return render()}
   if(a==='taskdel'){S.tasks=(S.tasks||[]).filter(x=>x.id!==id);askKey=null;save();toast('İş silindi');return render()}
+  if(a==='memadd'){const el=document.getElementById('mem-new'),v=el&&el.value.trim();if(!v)return;(S.aiMem=S.aiMem||[]).push({id:rid(),text:v.slice(0,300),t:new Date().toISOString(),by:CUR.name});save();toast('Hafızaya eklendi');return render()}
+  if(a==='memdel'){S.aiMem=(S.aiMem||[]).filter(m=>m.id!==id);askKey=null;save();return render()}
+  if(a==='remadd'){const tx=(document.getElementById('rem-txt')||{}).value||'',at=(document.getElementById('rem-at')||{}).value||'';const d=new Date(at);if(!tx.trim()||isNaN(d)){toast('Ne ve ne zaman yazın');return}if(d<new Date()){toast('Geçmiş bir zaman seçtiniz');return}
+    (S.reminders=S.reminders||[]).push({id:rid(),text:tx.trim().slice(0,300),at:d.toISOString(),done:false,t:new Date().toISOString()});save();toast('Hatırlatma kuruldu: '+fdt(d));return render()}
+  if(a==='remdel'){S.reminders=(S.reminders||[]).filter(r=>r.id!==id);askKey=null;save();return render()}
   if(a==='aiopen'){panelTab='asistan';aiSeg=aiPend().length&&!(S.aiChat||[]).length?'onay':'konus';location.hash='panel';render();window.scrollTo(0,document.body.scrollHeight);aiSetup();return}
   if(a==='aiseg'){aiSeg=t.dataset.k;return render()}
   if(a==='aimic'){aiMicClick();return}
@@ -2422,6 +2469,7 @@ document.addEventListener('change',ev=>{
   if(t.id==='m-file'){const f=t.files&&t.files[0];if(f)resizeImg(f).then(d=>{msgPhoto=d;msgMenu=false;msgText=(document.getElementById('m-text')||{}).value||msgText;render()}).catch(()=>toast('Fotoğraf okunamadı'));return}
   if(t.dataset&&t.dataset.umove!==undefined&&t.value){moveUnit(t.dataset.umove,t.value==='__free'?null:t.value);save();toast(t.value==='__free'?'Motor boşa çıkarıldı':'Motor yeni müşteriye ayrıldı; asıl müşteriye hazırlama işi açıldı');return render()}
   if(t.id==='set-vekil'){S.settings.vekil=t.value||null;save();toast(t.value?uname(t.value)+' vekil oldu; İşlerim ekranında motor girişi görecek':'Vekil kaldırıldı');return render()}
+  if(t.id==='ai-auto'){try{localStorage.setItem('eo-autolisten',t.checked?'1':'')}catch(e){}toast(t.checked?'Uygulamayı açınca asistan dinlemeye başlayacak':'Kapatıldı');return}
   if(t.id==='ai-voice'){aiVoice=t.checked;if(!aiVoice&&AI.tts)try{AI.tts.stop()}catch(e){}return}
   if(t.id==='set-trig'){S.settings.jobTrigger=t.value;save();toast('Kaydedildi');return render()}
   if(d.jf){const s=S.sales.find(x=>x.id===d.id),j=s&&(s.jobs||[]).find(x=>x.id===d.jid);if(!j)return;const old=j[d.jf];j[d.jf]=t.value;

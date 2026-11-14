@@ -58,6 +58,7 @@ jobs:
           for P in RECORD_AUDIO MODIFY_AUDIO_SETTINGS CAMERA ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION POST_NOTIFICATIONS; do
             grep -q "permission.$P\"" $M || sed -i "s#<application#<uses-permission android:name=\"android.permission.$P\" />\n    <application#" $M
           done
+          python3 ../scripts/android_extra.py
           sed -i 's#versionCode 1#versionCode ${{ github.run_number }}#; s#versionName "1.0"#versionName "1.${{ github.run_number }}"#' android/app/build.gradle
           npx cap sync android
       - name: Derle

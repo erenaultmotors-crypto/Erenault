@@ -21,7 +21,8 @@
 
 var TZ = 'Europe/Istanbul';
 var CORE = { getirdi: 1, sonra: 1, yok: 1 };
-var COLLS = ['pos', 'supPays', 'stockLog', 'esnaf', 'units', 'prepOrders', 'unitLog', 'aiPending', 'aiLog', 'tasks'];
+var COLLS = ['pos', 'supPays', 'stockLog', 'esnaf', 'units', 'prepOrders', 'unitLog', 'aiPending', 'aiLog', 'tasks', 'aiMem', 'reminders'];
+var OWNER_ONLY = ['supPays', 'aiPending', 'aiLog', 'aiMem', 'reminders'];
 var TASK_W = ['status', 'hist', 'photo', 'wSeen', 'seenAt', 'doneAt', 'pSeen', 'doneQty', 'unitsAdded'];
 var KCOLS = ['Tür', 'Zaman', 'Özet', 'id', 'veri (dokunmayın)'];
 
@@ -51,7 +52,7 @@ function doPost(e) {
   var out;
   try {
     var b = JSON.parse((e && e.postData && e.postData.contents) || '{}');
-    var fns = { apiPushToken: apiPushToken, apiBoot: apiBoot, apiSetup: apiSetup, apiLogin: apiLogin, apiPull: apiPull, apiPush: apiPush, apiUpload: apiUpload, apiFile: apiFile,
+    var fns = { apiAiThink: apiAiThink, apiPushToken: apiPushToken, apiBoot: apiBoot, apiSetup: apiSetup, apiLogin: apiLogin, apiPull: apiPull, apiPush: apiPush, apiUpload: apiUpload, apiFile: apiFile,
       apiPubFile: apiPubFile, apiSigData: apiSigData, apiSavePdf: apiSavePdf, apiAiToken: apiAiToken, apiSubmitQuote: apiSubmitQuote, apiSign: apiSign };
     if (!fns[b.fn]) throw new Error('NOFN');
     out = { ok: true, r: fns[b.fn].apply(null, b.args || []) };
@@ -197,6 +198,7 @@ function pullFor(u, since) {
   out.gone = {};
   (meta.gone || []).forEach(function (g) { if (!since || g.t > since) (out.gone[g.c] = out.gone[g.c] || []).push(g.id); });
   if (role !== 'worker' || canPrep(u)) out.stock = getStock();
+  if (role === 'owner' && meta.report) out.report = meta.report;
   return out;
 }
 
@@ -779,6 +781,8 @@ function storeSummary(c, r) {
   if (c === 'esnaf') return (r.shop || '') + ' · ' + (r.name || '');
   if (c === 'supPays') return (sup[r.sup] || '') + ' · ' + money(r.amt);
   if (c === 'aiLog') return r.title || '';
+  if (c === 'aiMem') return r.text || '';
+  if (c === 'reminders') return (r.done ? '✓ ' : '') + (r.at || '') + ' · ' + (r.text || '');
   if (c === 'tasks') { var us = {}; getUsers().forEach(function (x) { us[x.id] = x.name; }); return (us[r.to] || '') + ' · ' + (r.title || '') + ' · ' + (JOBS_ST[r.status] || r.status); }
   if (c === 'aiPending') return (r.status || '') + ' · ' + (r.title || '');
   return '';
@@ -790,7 +794,7 @@ function getCatalogCached() { if (!_catCache) _catCache = getCatalog(); return _
 // Kim neyi görür
 function collView(n, r, u, role) {
   if (role === 'owner') return r;
-  if (n === 'supPays' || n === 'aiPending' || n === 'aiLog') return null;
+  if (OWNER_ONLY.indexOf(n) >= 0) return null;
   if (role === 'worker') {
     if (n === 'tasks') return r.to === u.id ? r : null;
     if (!canPrep(u) || ['units', 'prepOrders', 'unitLog'].indexOf(n) < 0) return null;
@@ -850,7 +854,7 @@ function pushColls(u, role, colls) {
         if (n === 'stockLog' && cur) rec = null; // hareketler değişmez
         if (n === 'pos') rec.total = poTotalSrv(rec, parts);
       } else if (role === 'staff') {
-        if (n === 'supPays' || n === 'aiPending' || n === 'aiLog') rec = null;
+        if (OWNER_ONLY.indexOf(n) >= 0) rec = null;
         else if (n === 'pos') rec = staffPO(cur, it, u, parts);
         else if (n === 'stockLog') rec = cur ? null : it;
         else if (n === 'unitLog') rec = cur ? (function () { var y = JSON.parse(JSON.stringify(cur)); return y; })() : it;
@@ -1007,6 +1011,102 @@ function bildirimDene() {
 }
 
 /* ===================== Yapay zeka asistanı (sadece patron) ===================== */
+
+// Gemini'ye yazılı soru (derin düşünme ve sabah raporu için)
+function geminiText(model, system, prompt, maxTok) {
+  var key = props().getProperty('GEMINI_KEY');
+  if (!key) throw new Error('NOKEY');
+  var body = JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: { maxOutputTokens: maxTok || 1500, temperature: 0.4 } });
+  var res = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true, headers: { 'x-goog-api-key': key }, payload: body });
+  if (res.getResponseCode() >= 300) throw new Error('AIERR ' + res.getResponseCode() + ' ' + res.getContentText().slice(0, 200));
+  var j = JSON.parse(res.getContentText()), c = (j.candidates || [])[0];
+  return ((c && c.content && c.content.parts) || []).map(function (p) { return p.text || ''; }).join('').trim();
+}
+
+function geminiTry(models, system, prompt, maxTok) {
+  var last = null;
+  for (var i = 0; i < models.length; i++) { try { var t = geminiText(models[i], system, prompt, maxTok); if (t) return t; } catch (e) { last = e; if (/NOKEY/.test(String(e))) throw e; } }
+  throw last || new Error('AIERR boş cevap');
+}
+
+var DANISMAN = 'Sen Eren Oto (Erenault Motors; Renault ticari araç motoru revizyonu yapıp satan atölye) için deneyimli bir işletme danışmanısın. ' +
+  'Güncel verilere bakarak patrona somut, uygulanabilir öneriler ver. Rakamları ve isimleri sadece veriden al, asla uydurma; veri yoksa söyle. ' +
+  'Türkçe, sade, konuşur gibi yaz; madde işareti ve başlık kullanma. En fazla 8 cümle.';
+
+function apiAiThink(a, q, data, mem) {
+  var u = authU(a);
+  if (roleOf(u) !== 'owner') throw new Error('NOTFOUND');
+  var c = CacheService.getScriptCache(), n = Number(c.get('aithink') || 0);
+  if (n > 40) throw new Error('BUSY');
+  c.put('aithink', String(n + 1), 3600);
+  var m1 = props().getProperty('GEMINI_DEEP_MODEL') || 'gemini-pro-latest';
+  return geminiTry([m1, 'gemini-flash-latest'], DANISMAN,
+    'Patronun notları: ' + clip((mem || []).join(' | '), 3000) + '\nBugün: ' + todayTR() + '\nSORU: ' + clip(q, 1000) + '\nVERİ (JSON): ' + clip(typeof data === 'string' ? data : JSON.stringify(data), 60000), 1500);
+}
+
+// Sunucunun kendi gözünden kısa durum özeti (rapor için)
+function durumOzeti() {
+  var C = getCatalog() || { engines: [], parts: [] }, db = readSales(), st = readStore(), t = todayTR(), stock = getStock(), names = {};
+  getUsers().forEach(function (x) { names[x.id] = x.name; });
+  var jobs = [];
+  db.list.forEach(function (x) { var s = x.sale; (s.jobs || []).forEach(function (j) { jobs.push({ is: JOBK[j.kind] || j.kind, kisi: names[j.to] || '', musteri: (s.customer || {}).name || '', durum: JOBS_ST[j.status] || j.status, termin: j.due || '', bitti: j.status === 'hazir' || j.status === 'teslim' }); }); });
+  st.list('tasks').forEach(function (j) { jobs.push({ is: j.title || '', kisi: names[j.to] || '', durum: JOBS_ST[j.status] || j.status, termin: j.due || '', bitti: j.status === 'hazir' || j.status === 'teslim' }); });
+  var open = jobs.filter(function (j) { return !j.bitti; });
+  var low = (C.parts || []).filter(function (p) { return (Number(stock[p.id]) || 0) <= (Number(p.min) || 0); }).map(function (p) { return p.name + ' ' + (Number(stock[p.id]) || 0) + '/' + (p.min || 0); });
+  var use = {}, from = Utilities.formatDate(new Date(Date.now() - 30 * 864e5), TZ, 'yyyy-MM-dd');
+  st.list('stockLog').forEach(function (m) { if (m.d < 0 && String(m.t).slice(0, 10) >= from) use[m.pid] = (use[m.pid] || 0) - m.d; });
+  var yeter = (C.parts || []).filter(function (p) { return use[p.id]; }).map(function (p) { return { parca: p.name, adet: Number(stock[p.id]) || 0, gun: Math.floor((Number(stock[p.id]) || 0) / (use[p.id] / 30)) }; })
+    .filter(function (x) { return x.gun <= 10; });
+  var units = st.list('units').filter(function (x) { return !x.out; }), eng = {};
+  (C.engines || []).forEach(function (e) { eng[e.id] = e.name; });
+  var hazir = {}; units.forEach(function (x) { var k = eng[x.eid] || x.eid; hazir[k] = hazir[k] || { dukkanda: 0, bosta: 0 }; hazir[k].dukkanda++; if (!x.sale) hazir[k].bosta++; });
+  var bekleyen = db.list.map(function (x) { return x.sale; }).filter(function (s) { return s.status === 'satildi'; }).map(function (s) {
+    var have = units.filter(function (x) { return x.sale === s.id; }).length; return { musteri: s.customer.name, motor: s.engine, eksik: Math.max(0, (s.qty || 1) - have) }; }).filter(function (x) { return x.eksik; });
+  var alacak = db.list.map(function (x) { return x.sale; }).filter(function (s) { return s.status === 'satildi' || s.status === 'teslim'; }).map(function (s) {
+    var paid = (s.pays || []).reduce(function (a2, p) { return a2 + (Number(p.amt) || 0); }, 0); return { musteri: s.customer.name, kalan: (s.total || 0) - paid }; }).filter(function (x) { return x.kalan > 0; });
+  var pos = st.list('pos');
+  return {
+    tarih: t, acik_is: open.length, geciken_is: open.filter(function (j) { return j.termin && j.termin < t; }), bugun_termin: open.filter(function (j) { return j.termin === t; }),
+    yeni_teklif: db.list.filter(function (x) { return x.sale.status === 'geldi'; }).length,
+    azalan_parca: low, yakinda_biten_parca: yeter, hazir_motor: hazir, motor_bekleyen_satis: bekleyen,
+    alacaklar: alacak.slice(0, 15), onay_bekleyen_siparis: pos.filter(function (p) { return p.status === 'onay'; }).length,
+    gonderilmemis_siparis: pos.filter(function (p) { return p.status === 'gonderildi' && !p.sentAt; }).length,
+    hatirlatmalar_bugun: st.list('reminders').filter(function (r) { return !r.done && String(r.at).slice(0, 10) === t; }).map(function (r) { return r.text; }),
+    notlar: st.list('aiMem').map(function (m) { return m.text; })
+  };
+}
+
+// Her sabah (zamanlayıcı ile) çalışır
+function sabahRaporu() {
+  var d = durumOzeti();
+  var txt = geminiTry([props().getProperty('GEMINI_REPORT_MODEL') || 'gemini-flash-latest', 'gemini-pro-latest'],
+    DANISMAN + ' Bu bir sabah raporu: "Günaydın" ile başla, bugünün tablosunu 2-3 cümlede özetle, sonra en önemli 2-3 somut öneriyi ver (kime ne yaptırılmalı, ne sipariş edilmeli, kim aranmalı).',
+    'VERİ (JSON): ' + JSON.stringify(d).slice(0, 50000), 900);
+  var meta = getMeta(); meta.report = { t: new Date().toISOString(), text: txt }; saveMeta(meta);
+  pushTo('owner', '☀️ Günaydın · Erenault', txt.replace(/^Günaydın[.,!]?\s*/i, '').slice(0, 180), 'asistan');
+  return txt;
+}
+
+// 5 dakikada bir (zamanlayıcı ile) çalışır
+function hatirlatmaKontrol() {
+  var st = readStore(), now = Date.now();
+  st.list('reminders').forEach(function (r) {
+    if (r.done || !r.at || new Date(r.at).getTime() > now) return;
+    var y = JSON.parse(JSON.stringify(r)); y.done = true; y.sentAt = new Date().toISOString(); st.put('reminders', y);
+    pushTo('owner', '⏰ Hatırlatma', r.text, 'asistan');
+  });
+}
+
+// BİR KEZ çalıştırın: sabah raporu (08:30) ve hatırlatma (5 dk) zamanlayıcılarını kurar
+function kurulumZamanlayicilar() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (['sabahRaporu', 'hatirlatmaKontrol'].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('sabahRaporu').timeBased().atHour(8).nearMinute(30).everyDays(1).inTimezone(TZ).create();
+  ScriptApp.newTrigger('hatirlatmaKontrol').timeBased().everyMinutes(5).create();
+  console.log('Zamanlayıcılar kuruldu. Sabah raporunu şimdi denemek için sabahRaporu işlevini çalıştırabilirsiniz.');
+}
+
 // API anahtarı Script Properties'te GEMINI_KEY adıyla durur; telefona asla gitmez.
 // Telefon buradan birkaç dakikalık tek kullanımlık bir geçiş anahtarı alır.
 function apiAiToken(a) {
