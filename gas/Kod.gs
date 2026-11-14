@@ -994,8 +994,7 @@ function apiAiToken(a) {
   var res = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens', {
     method: 'post', contentType: 'application/json', muteHttpExceptions: true,
     headers: { 'x-goog-api-key': key },
-    payload: JSON.stringify({ uses: 1, expireTime: exp, newSessionExpireTime: start,
-      liveConnectConstraints: { model: 'models/' + model, config: { sessionResumption: {}, responseModalities: ['AUDIO'] } } })
+    payload: JSON.stringify({ uses: 1, expireTime: exp, newSessionExpireTime: start })
   });
   if (res.getResponseCode() >= 300) throw new Error('AIERR ' + res.getResponseCode() + ' ' + res.getContentText().slice(0, 200));
   var j = JSON.parse(res.getContentText());
