@@ -1098,7 +1098,7 @@ const AI_TOOLS_READ=[
  {name:'hazir_motorlar',description:'Dükkandaki hazır motor stoğu: motor başına dükkanda, boşta, ayrılmış (kime) ve motor bekleyen satışlar; stoğa hazırlama işlerinin ilerlemesi.',
   execute:()=>({motorlar:S.engines.map(e=>{const U=unitsIn(e.id);return{motor:e.name,dukkanda:U.length,bosta:U.filter(u=>!u.sale).length,ayrilmis:U.filter(u=>u.sale).map(u=>(S.sales.find(s=>s.id===u.sale)||{customer:{}}).customer.name),bekleyen_satis:waitingSales(e.id).map(s=>s.customer.name+' ('+saleNeed(s)+')')}}),hazirlama_isleri:(S.prepOrders||[]).filter(o=>!o.doneAt).map(o=>({motor:engName(o.eid),hedef:o.qty,hazir:o.done,termin:o.due||''})),vekil:uname(S.settings.vekil)||'seçilmedi'})},
  {name:'son_mesajlar',description:'Patronun okunmamış ve son ekip mesajlarını döner.',
-  execute:()=>myMsgs().slice(-12).map(m=>({kimden:uname(m.from),kime:m.to==='ekip'?'Ekip':uname(m.to),metin:m.deleted?'(geri alındı)':(m.text||(m.audio?'sesli mesaj':m.photo?'fotoğraf':m.loc?'konum':m.doc?'belge':'')),zaman:m.t,okunmadi:m.from!==CUR.id&&!(m.readBy||{})[CUR.id]}))}
+  execute:()=>myMsgs().slice(-12).map(m=>({kimden:uname(m.from),kime:m.to==='ekip'?'Ekip':uname(m.to),metin:m.deleted?'(silindi)':(m.text||(m.audio?'sesli mesaj':m.photo?'fotoğraf':m.loc?'konum':m.doc?'belge':'')),zaman:m.t,okunmadi:m.from!==CUR.id&&!(m.readBy||{})[CUR.id]}))}
 ];
 const AI_READ_MAP={},AI_ACT_MAP={};
 function aiTools(){if(!Object.keys(AI_READ_MAP).length){AI_TOOLS_READ.forEach(t=>AI_READ_MAP[t.name]=t);AI_TOOLS_ACT.forEach(t=>AI_ACT_MAP[t.name]=t)}
@@ -1331,15 +1331,6 @@ function editorExtras(c){
     <p class="small muted" style="margin:0">${ROLE==='staff'?'Genel sözleşme maddeleri otomatik eklenir. Bu müşteriye özel bir madde varsa aşağıya yazın.':'Bu satışta geçerli olmayan genel maddelerin işaretini kaldırın. Altına bu müşteriye özel maddeleri yazın.'}</p>
     ${ROLE==='staff'?'':`<div class="termsel">${gt.map((t,i)=>`<label class="${off.includes(i)?'off':''}"><input type="checkbox" data-toff="${i}" ${off.includes(i)?'':'checked'}><span>${esc(t)}</span></label>`).join('')}</div>`}
     <label class="f"><span>Bu satışa özel şartlar (her satır bir madde)</span><textarea id="q-termsExtra" data-q="termsExtra" rows="3" placeholder="Örn. Turbo müşteri tarafından temin edilecektir.">${esc(Q.termsExtra||'')}</textarea></label></div></div>`;
-  h+=`<div class="section"><div class="step"><span class="n">${canDiscount()?6:5}</span><h3>Ödeme planı</h3></div><div class="card" style="display:flex;flex-direction:column;gap:12px">
-    <p class="small muted" style="margin:0">Kapora ve taksitleri girin. Plan sözleşmede görünür; vadesi gelen ödemeler bildirimlere düşer.</p>
-    <div class="plangen"><label class="f"><span>Kapora (₺)</span><input type="number" inputmode="numeric" id="pg-kap" placeholder="0"></label>
-      <label class="f"><span>Kalan nasıl ödenecek?</span><select id="pg-mode"><option value="1">Teslimde tek seferde</option>${[2,3,4,5,6,8,10,12].map(n=>`<option value="${n}">${n} taksit</option>`).join('')}</select></label>
-      <label class="f"><span>İlk ödeme tarihi</span><input type="date" id="pg-first" value="${addDays(today(),30)}"></label>
-      <button class="btn" data-act="genplan">Planı oluştur</button></div>
-    ${plan.length?`<div class="plan">${plan.map((p,i)=>`<div class="pr"><label class="f"><span>Açıklama</span><input type="text" id="pl-l-${p.id}" data-pl="label" data-i="${i}" value="${esc(p.label)}"></label><label class="f"><span>Tutar (₺)</span><input type="number" inputmode="numeric" id="pl-a-${p.id}" data-pl="amt" data-i="${i}" value="${p.amt}"></label><label class="f"><span>Vade</span><input type="date" id="pl-d-${p.id}" data-pl="due" data-i="${i}" value="${p.due||''}"></label><button class="iconbtn del" data-act="delplan" data-i="${i}" aria-label="Satırı sil">✕</button></div>`).join('')}</div>
-      <div class="sumchk${psum!==c.total?' bad':''}">Plan toplamı <b class="num">${fmt(psum)}</b> · Satış tutarı <b class="num">${fmt(c.total)}</b>${psum!==c.total?` · Fark <b class="num">${fmt(c.total-psum)}</b>`:' ✓'}</div>`:''}
-    <div class="row"><button class="btn sm" data-act="addplan">+ Satır ekle</button>${plan.length?'<button class="btn sm danger" data-act="clearplan">Planı temizle</button>':''}</div></div></div>`;
   return h;
 }
 function saveSale(){
@@ -1428,7 +1419,7 @@ function payBlock(s){
   const ps=planState(s),paid=paidOf(s),rest=restOf(s);
   let h=`<div class="pay"><div class="payhd"><b>Ödemeler</b><span>Ödenen <b class="num">${fmt(paid)}</b> · Kalan <b class="num" style="color:${rest?'var(--bad)':'var(--good)'}">${fmt(rest)}</b></span></div>`;
   if(ps.length)h+=`<div class="plist">${ps.map(it=>`<div class="pit${it.done?' done':it.late?' late':''}"><div><b>${esc(it.label)}</b><span class="num">${it.due?fdate(it.due):'Tarih yok'} · ${fmt(it.amt)}${it.paid&&!it.done?' · '+fmt(it.paid)+' ödendi':''}</span></div><div class="row">${it.done?'<span class="pst ok">✓ Ödendi</span>':`${it.late?'<span class="pst late">Gecikti</span>':''}${remindBtn(s,it,1)}<button class="btn sm pri" data-act="paid" data-id="${s.id}" data-pid="${it.id}">Ödendi</button>`}</div></div>`).join('')}</div>`;
-  else h+=`<p class="small muted" style="margin:0">Ödeme planı yok. "Satışı düzenle" ekranından kapora ve taksit ekleyebilirsiniz.</p>`;
+  else h+=`<p class="small muted" style="margin:0">Alınan ödemeleri (kapora, ara ödeme, kalan) aşağıdan girin.</p>`;
   const pays=s.pays||[];
   if(pays.length)h+=`<div><b class="small">Alınan ödemeler</b>${pays.map(p=>`<div class="payrow"><span class="num" style="flex:1;min-width:0">${fdate(p.date)} · <b>${fmt(p.amt)}</b> · ${esc(p.method||'')}${p.planId?' · '+esc(((s.plan||[]).find(x=>x.id===p.planId)||{}).label||''):''}${p.by?` · <span class="muted">alan: ${esc(p.by)}</span>`:''}</span>${p.dekont?`<img class="dek${bigDek===p.id?' big':''}" src="${p.dekont}" alt="Dekont" data-act="dekzoom" data-pid="${p.id}">`:''}<a class="btn sm wa" href="${waLink(s.customer.phone,rcptMsg(s,p))}" target="_blank" rel="noopener" data-log="Ödeme makbuzunu WhatsApp'tan gönderdi (${fmt(p.amt)})" data-id="${s.id}">${WA_ICON}Makbuz gönder</a><button class="btn sm" data-act="rcpt" data-id="${s.id}" data-pid="${p.id}">Makbuz PDF</button>${ROLE==='owner'?`<button class="linkbtn danger" style="font-size:13px" data-act="delpay" data-id="${s.id}" data-pid="${p.id}">sil</button>`:''}</div>`).join('')}</div>`;
   if(payForm&&payForm.id===s.id){const it=(s.plan||[]).find(x=>x.id===payForm.pid);
@@ -1635,9 +1626,10 @@ function docIc(n){const e=(n.split('.').pop()||'').toLowerCase();return e==='pdf
 function docCard(d,mid){const [l,c]=docIc(d.name);return `<div class="mcard mdoc"><span class="ic ${c}">${l}</span><span class="tx"><b>${esc(d.name)}</b><span class="small muted">${fsize(d.size)}</span></span>${mid?`<button class="btn sm" data-act="mdocdl" data-id="${mid}" style="margin-left:auto">Aç / kaydet</button>`:''}</div>`}
 function audCard(a){return `<div class="mcard" style="padding:6px 8px"><span class="small muted">🎤 Sesli mesaj${a.dur?' · '+fmtDur(a.dur):''}</span><audio controls preload="metadata" src="${a.data}"></audio></div>`}
 function fmtDur(s){s=Math.round(s);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
-function msgPreview(m,g){if(m.deleted)return '🚫 Mesaj geri alındı';const who=m.from===CUR.id?'Sen: ':g?esc(uname(m.from))+': ':'';
+let msgDelAsk=null;
+function msgPreview(m,g){if(m.deleted)return '🚫 Mesaj silindi';const who=m.from===CUR.id?'Sen: ':g?esc(uname(m.from))+': ':'';
   const t=m.text?esc(m.text):m.audio?'🎤 Sesli mesaj':m.loc?'📍 Konum':m.doc?'📄 '+esc(m.doc.name):m.photo?'📷 Fotoğraf':m.job?'📎 İş':'';return who+(m.job&&m.text?'📎 ':'')+t}
-function canUndo(m){return m.from===CUR.id&&!m.deleted&&Date.now()-new Date(m.t).getTime()<5*60000}
+function canUndo(m){return !m.deleted&&(m.from===CUR.id||ROLE==='owner')}
 function renderMsgs(){
   const others=S.users.filter(u=>u.id!==CUR.id);
   if(!msgConv){const last=k=>myMsgs().filter(m=>convKey(m)===k).sort((a,b)=>String(b.t).localeCompare(String(a.t)))[0];
@@ -1655,8 +1647,8 @@ function renderMsgs(){
   if(!L.length)h+=`<div class="empty">Henüz mesaj yok. İlk mesajı yazın.</div>`;
   L.forEach(m=>{const d=locDay(m.t);if(d!==lastDay){h+=`<span class="dsep">${d===today()?'Bugün':fdate(d)}</span>`;lastDay=d}const me=m.from===CUR.id;
     let rd='';if(me&&!m.deleted){if(u)rd=(m.readBy||{})[u.id]?' · <span class="rd">Görüldü ✓✓</span>':' · İletildi ✓';else{const who=Object.keys(m.readBy||{}).filter(x=>x!==CUR.id).map(uname);rd=who.length?` · <span class="rd">Görenler: ${who.map(esc).join(', ')}</span>`:' · Henüz kimse görmedi'}}
-    const acts=(canUndo(m)?`<button class="mact" data-act="mundo" data-id="${m.id}">Geri al</button>`:'')+(k==='ekip'&&ROLE==='owner'&&!m.deleted&&S.pinned!==m.id?`<button class="mact" data-act="mpin" data-id="${m.id}">📌 Sabitle</button>`:'');
-    h+=`<div class="msg${me?' me':''}"><div class="bub">${!me&&!u?`<b class="mfrom">${esc(uname(m.from))}</b>`:''}${m.deleted?`<div class="mdel">🚫 Bu mesaj geri alındı</div>`:
+    const acts=(canUndo(m)?(msgDelAsk===m.id?`<button class="mact" style="color:var(--bad);font-weight:700" data-act="mundo" data-id="${m.id}">Evet, sil</button><button class="mact" data-act="mdelno">Vazgeç</button>`:`<button class="mact" data-act="mdelask" data-id="${m.id}">🗑 Sil</button>`):'')+(k==='ekip'&&ROLE==='owner'&&!m.deleted&&S.pinned!==m.id?`<button class="mact" data-act="mpin" data-id="${m.id}">📌 Sabitle</button>`:'');
+    h+=`<div class="msg${me?' me':''}"><div class="bub">${!me&&!u?`<b class="mfrom">${esc(uname(m.from))}</b>`:''}${m.deleted?`<div class="mdel">🚫 Bu mesaj silindi</div>`:
       `${m.job?jobRefCard(m.job,1):''}${m.photo?`<img class="mimg" src="${m.photo}" alt="Fotoğraf" data-act="mimg" data-id="${m.id}" style="${bigMsgImg===m.id?'max-width:100%':''}">`:''}${m.doc?docCard(m.doc,m.id):''}${m.loc?locCard(m.loc):''}${m.audio?audCard(m.audio):''}${m.text?`<div class="mtx">${esc(m.text)}</div>`:''}`}<span class="mt">${mtime(m.t)}${rd}${acts}</span></div></div>`});
   h+=`</div>`;
   app.innerHTML=h;
@@ -1987,7 +1979,8 @@ function pSales(){
   const cnt=k=>S.sales.filter(s=>k?s.status===k:true).length;
   const FT={geldi:'Gelen teklifler',gonderildi:'Form gönderilenler',satildi:'Satılanlar',teslim:'Teslim edilenler'};
   let h=`<div class="section"><h2>Satışlar</h2><div class="bigacts"><button class="bigbtn pri" data-act="newsale"><b>+ Müşteri yanımda</b><span>Satışı şimdi girin, burada imzalatın</span></button><button class="bigbtn" data-act="newtoggle"><b>+ Form gönder</b><span>Müşteri formu kendisi doldursun</span></button></div>`;
-  if(newOpen)h+=`<div class="card section" style="margin:0"><h3>Yeni müşteriye teklif formu gönder</h3><div class="form2"><label class="f"><span>Ad soyad</span><input type="text" id="n-name" autocomplete="off"></label><label class="f"><span>Telefon</span><input type="tel" id="n-phone" placeholder="05xx xxx xx xx"></label></div><div class="row"><button class="btn pri" data-act="newsend">Mesajı hazırla</button><button class="btn" data-act="newtoggle">Vazgeç</button></div></div>`;
+  if(newOpen)h+=`<div class="card section" style="margin:0"><h3>Yeni müşteriye teklif formu gönder</h3><div class="form2"><label class="f"><span>Ad soyad</span><input type="text" id="n-name" autocomplete="off"></label><label class="f"><span>Telefon</span><input type="tel" id="n-phone" placeholder="05xx xxx xx xx"></label></div><div class="row"><button class="btn pri" data-act="newsend">Mesajı hazırla</button><button class="btn" data-act="newtoggle">Vazgeç</button></div>
+    <div class="note"><b>veya genel teklif formu linki</b> <span class="small muted">(kopyalayıp istediğiniz yere yapıştırın: WhatsApp, Instagram, SMS)</span><div class="row" style="margin-top:6px"><code style="word-break:break-all;flex:1;min-width:0">${esc(custLink())}</code><button class="btn sm" data-act="copytxt" data-t="${esc(custLink())}">Kopyala</button><a class="btn sm wa" href="https://wa.me/?text=${encodeURIComponent('Eren Oto motor teklif formu: '+custLink())}" target="_blank" rel="noopener">${WA_ICON}Paylaş</a></div></div></div>`;
   if(impOpen)h+=`<div class="card section" style="margin:0"><h3>Gelen mesajı ekle</h3><p class="note" style="margin:0">Bu adım sadece taslakta var. Google'a geçince teklifler ve imzalı onaylar buraya kendiliğinden düşecek.</p><p style="margin:0">WhatsApp'ta müşterinin mesajını kopyalayın. Sonra aşağıdaki kutuya <b>basılı tutup Yapıştır</b>'a dokunun. Gerisi kendiliğinden olur.</p><textarea id="imp" rows="3" placeholder="Buraya basılı tutun → Yapıştır">${esc(impText)}</textarea><div id="impres">${impPreview()}</div><div class="row"><button class="btn" data-act="impclose">Kapat</button></div></div>`;
   if(impResult)h+=`<div class="card section" style="margin:0;border-color:var(--good)"><b style="color:var(--good)">✓ ${esc(impResult.msg)}</b><div class="row">${impResult.pdf?`<button class="btn sm" data-act="pdf" data-id="${impResult.pdf}">PDF'i tekrar kaydet</button>`:''}${impResult.undo&&undoSales?'<button class="btn sm" data-act="undo">Geri al</button>':''}<button class="btn sm" data-act="impagain">Başka mesaj ekle</button></div></div>`;
   if(newLink)h+=`<div class="card section" style="margin:0;border-color:#1f9d57"><b>${esc(newLink.name)} kaydedildi. Şimdi mesajı WhatsApp'ta açıp gönderin.</b><div class="row"><a class="btn wa" href="${newLink.href}" target="_blank" rel="noopener">${WA_ICON}WhatsApp'ta aç</a><button class="btn sm" data-act="closenew">Kapat</button></div></div>`;
@@ -2244,7 +2237,9 @@ document.addEventListener('click',ev=>{
   if(a==='mrec'){msgText=(document.getElementById('m-text')||{}).value??msgText;startRec();return}
   if(a==='recstop'){if(rec)rec.mr.stop();return}
   if(a==='reccancel'){if(rec){rec.cancel=true;rec.mr.stop()}return}
-  if(a==='mundo'){const m=(S.msgs||[]).find(x=>x.id===id);if(m&&canUndo(m)){m.deleted=true;['text','photo','doc','loc','audio','job'].forEach(f=>delete m[f]);if(S.pinned===m.id)S.pinned=null;save();toast('Mesaj geri alındı')}return render()}
+  if(a==='mdelask'){msgDelAsk=id;return render()}
+  if(a==='mdelno'){msgDelAsk=null;return render()}
+  if(a==='mundo'){msgDelAsk=null;const m=(S.msgs||[]).find(x=>x.id===id);if(m&&canUndo(m)){m.deleted=true;m.delBy=CUR.id;['text','photo','doc','loc','audio','job'].forEach(f=>delete m[f]);if(S.pinned===m.id)S.pinned=null;save();toast('Mesaj silindi')}return render()}
   if(a==='mpin'){S.pinned=id;save();toast('Duyuru en üste sabitlendi');return render()}
   if(a==='munpin'){S.pinned=null;save();return render()}
   if(a==='mdocdl'){const m=(S.msgs||[]).find(x=>x.id===id);if(!m||!m.doc)return;(async()=>{let dl=null;try{dl=window.claude?.use?await window.claude.use('downloads'):null}catch(e){}

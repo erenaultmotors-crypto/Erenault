@@ -478,8 +478,9 @@ function pushMsgs(u, role, items) {
     }
     var m2 = hit.m, ch = false;
     if (msgVisible(m2, u, role) && it.readBy && it.readBy[u.id] && !(m2.readBy || {})[u.id]) { m2.readBy = m2.readBy || {}; m2.readBy[u.id] = it.readBy[u.id]; ch = true; }
-    if (it.deleted && m2.from === u.id && !m2.deleted && Date.now() - new Date(m2.t).getTime() < 10 * 60000) {
-      m2.deleted = true; ['text', 'photo', 'doc', 'loc', 'audio', 'job'].forEach(function (f) { delete m2[f]; }); ch = true;
+    if (it.deleted && !m2.deleted && (m2.from === u.id || role === 'owner')) {
+      [m2.photo, m2.audio && m2.audio.data, m2.doc && m2.doc.data].forEach(function (r) { if (isRef(r)) try { DriveApp.getFileById(r.slice(4)).setTrashed(true); } catch (e) { } });
+      m2.deleted = true; m2.delBy = u.id; ['text', 'photo', 'doc', 'loc', 'audio', 'job'].forEach(function (f) { delete m2[f]; }); ch = true;
     }
     if (ch) { m2.rev = Date.now(); writeMsg(db, m2); }
   });
@@ -504,7 +505,7 @@ function writeMsg(db, m) {
   var names = {};
   getUsers().forEach(function (x) { names[x.id] = x.name; });
   var row = [m.t, names[m.from] || m.from, m.to === 'ekip' ? 'Ekip' : (names[m.to] || m.to),
-    m.deleted ? '(geri alındı)' : (m.text || (m.audio ? '(sesli mesaj)' : m.photo ? '(fotoğraf)' : m.doc ? '(belge) ' + m.doc.name : m.loc ? '(konum) ' + (m.loc.name || '') : '')),
+    m.deleted ? '(silindi)' : (m.text || (m.audio ? '(sesli mesaj)' : m.photo ? '(fotoğraf)' : m.doc ? '(belge) ' + m.doc.name : m.loc ? '(konum) ' + (m.loc.name || '') : '')),
     m.id, JSON.stringify(m)];
   var hit = db.byId[m.id];
   if (hit) { db.sh.getRange(hit.row, 1, 1, MCOLS.length).setValues([row]); hit.m = m; }
