@@ -963,7 +963,70 @@ async function aiSetup(){if(aiInit)return;aiInit=true;(S.aiChat||[]).forEach(m=>
   if(t)t.onState(({state})=>{if(state==='speaking'){aiState='speaking';aiStatus='Konuşuyor… (durdurmak için mikrofona dokunun)'}else if(state==='idle'&&aiState==='speaking'){aiState='idle';aiStatus=''}aiPaint()});
   aiPaint()}
 async function aiAutoSend(){if(!AI.dict||aiState!=='listening')return;try{await AI.dict.stop()}catch(e){}const txt=aiBuf.trim();aiBuf='';aiPartial='';if(txt)aiAsk(txt);else{aiState='idle';aiPaint()}}
-function aiMicClick(){
+/* ===== Gemini Live: canlı sesli asistan (sadece patron, APK / Google sürümü) ===== */
+const LIVE={ok:true,ws:null,state:'off',micCtx:null,micNode:null,micStream:null,outCtx:null,next:0,srcs:[],idle:null,lastAct:0,userTxt:'',botTxt:'',demo:false,alias:{},turnOpen:false,waitTx:null};
+const LIVE_URL='wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token=';
+function liveSchema(s){if(!s||typeof s!=='object')return s;const o={};for(const k in s){const v=s[k];if(k==='type')o.type=String(v).toUpperCase();else if(k==='properties'){o.properties={};for(const p in v)o.properties[p]=liveSchema(v[p])}else if(k==='items')o.items=liveSchema(v);else o[k]=v}return o}
+function liveScrub(v){if(!LIVE.demo)return v;const names=S.sales.map(s=>s.customer&&s.customer.name).filter(Boolean);
+  const al=n=>LIVE.alias[n]||(LIVE.alias[n]='Müşteri '+(Object.keys(LIVE.alias).length+1));
+  const walk=x=>{if(typeof x==='string'){let y=x;names.forEach(n=>{if(n&&y.includes(n))y=y.split(n).join(al(n))});return y.replace(/(\+?90|0)?\s?5\d{2}[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}/g,'(telefon gizli)')}
+    if(Array.isArray(x))return x.map(walk);if(x&&typeof x==='object'){const o={};for(const k in x)if(!/telefon|phone/i.test(k))o[k]=walk(x[k]);return o}return x};return walk(v)}
+function liveUnscrub(v){if(!LIVE.demo)return v;const back={};Object.entries(LIVE.alias).forEach(([n,a])=>back[a]=n);
+  const walk=x=>{if(typeof x==='string'){let y=x;Object.entries(back).forEach(([a,n])=>{y=y.split(a).join(n)});return y}if(Array.isArray(x))return x.map(walk);if(x&&typeof x==='object'){const o={};for(const k in x)o[k]=walk(x[k]);return o}return x};return walk(v)}
+function liveSet(st,msg){LIVE.state=st;aiState=st==='listening'?'listening':st==='speaking'?'speaking':st==='thinking'||st==='connecting'?'thinking':'idle';aiStatus=msg||'';aiPaint()}
+function b64FromI16(i16){let s='';const u=new Uint8Array(i16.buffer);for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)}
+function i16FromB64(b){const s=atob(b),u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return new Int16Array(u.buffer)}
+async function liveStart(){
+  if(LIVE.ws)return;liveSet('connecting','Bağlanıyor…');
+  let tok;try{tok=await api('apiAiToken',AUTHO())}catch(e){liveSet('off',/NOKEY/.test(String(e&&e.message))?'Asistan anahtarı sunucuya eklenmemiş (Proje ayarları → GEMINI_KEY).':'Asistana bağlanılamadı: '+errMsg(e));return}
+  LIVE.demo=!!tok.demo;LIVE.alias={};
+  try{LIVE.micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}})}catch(e){liveSet('off','Mikrofon izni verilmedi. Telefon ayarlarından Erenault için mikrofona izin verin.');return}
+  LIVE.outCtx=LIVE.outCtx||new (window.AudioContext||window.webkitAudioContext)({sampleRate:24000});try{await LIVE.outCtx.resume()}catch(e){}
+  const ws=new WebSocket(LIVE_URL+encodeURIComponent(tok.token));LIVE.ws=ws;
+  ws.onopen=()=>{const decl=aiTools().map(t=>({name:t.name,description:t.description,...(t.inputSchema?{parameters:liveSchema(t.inputSchema)}:{})}));
+    ws.send(JSON.stringify({setup:{model:'models/'+(tok.model||'gemini-3.8-live'),generationConfig:{responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:'Kore'}}}},
+      systemInstruction:{parts:[{text:aiCtx().replace('Sen Eren Oto','Her zaman Türkçe konuş. Sen Eren Oto')+(LIVE.demo?'\nNOT: Deneme modundasın; müşteri adları "Müşteri 1" gibi takma adla gelir, öyle söyle.':'')}]},
+      tools:[{functionDeclarations:decl}],inputAudioTranscription:{},outputAudioTranscription:{},
+      realtimeInputConfig:{automaticActivityDetection:{silenceDurationMs:700}}}}))};
+  ws.onmessage=async ev=>{let m;try{m=JSON.parse(typeof ev.data==='string'?ev.data:await ev.data.text())}catch(e){return}liveMsg(m)};
+  ws.onerror=()=>{};
+  ws.onclose=ev=>{const was=LIVE.state;liveStop(true);if(was!=='off'&&ev.code!==1000)liveSet('off',ev.reason?'Bağlantı kapandı: '+ev.reason.slice(0,120):'Bağlantı kapandı.')};
+}
+function liveMic(){const ctx=new (window.AudioContext||window.webkitAudioContext)({sampleRate:16000});LIVE.micCtx=ctx;const src=ctx.createMediaStreamSource(LIVE.micStream);
+  const node=ctx.createScriptProcessor(2048,1,1);LIVE.micNode=node;src.connect(node);node.connect(ctx.destination);
+  node.onaudioprocess=e=>{if(!LIVE.ws||LIVE.ws.readyState!==1)return;const f=e.inputBuffer.getChannelData(0),i16=new Int16Array(f.length);for(let i=0;i<f.length;i++){const v=Math.max(-1,Math.min(1,f[i]));i16[i]=v<0?v*0x8000:v*0x7fff}
+    LIVE.ws.send(JSON.stringify({realtimeInput:{audio:{data:b64FromI16(i16),mimeType:'audio/pcm;rate=16000'}}}))}}
+function livePlay(b64){const ctx=LIVE.outCtx,i16=i16FromB64(b64),buf=ctx.createBuffer(1,i16.length,24000),ch=buf.getChannelData(0);for(let i=0;i<i16.length;i++)ch[i]=i16[i]/0x8000;
+  const s=ctx.createBufferSource();s.buffer=buf;s.connect(ctx.destination);const t=Math.max(ctx.currentTime+0.03,LIVE.next);s.start(t);LIVE.next=t+buf.duration;LIVE.srcs.push(s);s.onended=()=>{LIVE.srcs=LIVE.srcs.filter(x=>x!==s);if(!LIVE.srcs.length&&LIVE.state==='speaking')liveSet('listening','Dinliyorum… konuşabilirsiniz')}}
+function liveHush(){LIVE.srcs.forEach(s=>{try{s.stop()}catch(e){}});LIVE.srcs=[];LIVE.next=0}
+function liveTouch(){LIVE.lastAct=Date.now()}
+function liveFlush(){const u=LIVE.userTxt.trim(),b=LIVE.botTxt.trim();LIVE.userTxt='';LIVE.botTxt='';S.aiChat=S.aiChat||[];
+  if(u)S.aiChat.push({r:'u',x:u,t:new Date().toISOString()});if(b)S.aiChat.push({r:'a',x:b,t:new Date().toISOString()});if(S.aiChat.length>60)S.aiChat=S.aiChat.slice(-60);if(u||b)aiPaint()}
+async function liveMsg(m){
+  if(m.setupComplete){liveMic();liveTouch();LIVE.idle=setInterval(()=>{if(Date.now()-LIVE.lastAct>120000){liveStop();aiStatus='2 dakika konuşulmadığı için kapattım. Tekrar dokunun.';aiPaint()}},5000);
+    liveSet('listening',LIVE.demo?'Dinliyorum… (deneme modu: müşteri adları gizli gider)':'Dinliyorum… konuşabilirsiniz');return}
+  const sc=m.serverContent;
+  if(sc){if(sc.inputTranscription&&sc.inputTranscription.text){if(!LIVE.turnOpen){LIVE.turnOpen=true;aiTurnNo++;aiLastUser=''}aiLastUser+=sc.inputTranscription.text;LIVE.userTxt+=sc.inputTranscription.text;liveTouch()}
+    if(sc.interrupted){liveHush();liveSet('listening','Dinliyorum…')}
+    if(sc.modelTurn&&sc.modelTurn.parts)sc.modelTurn.parts.forEach(p=>{if(p.inlineData&&p.inlineData.data){if(LIVE.state!=='speaking')liveSet('speaking','Konuşuyor… (sözünü kesebilirsiniz)');livePlay(p.inlineData.data);liveTouch()}});
+    if(sc.outputTranscription&&sc.outputTranscription.text)LIVE.botTxt+=sc.outputTranscription.text;
+    if(sc.turnComplete){LIVE.turnOpen=false;liveFlush();liveTouch();save()}}
+  if(m.toolCall){liveSet('thinking','Bakıyorum…');const T=aiTools(),out=[];
+    for(const fc of (m.toolCall.functionCalls||[])){const t=T.find(x=>x.name===fc.name);let response;
+      if(fc.name==='onay_cevabi'&&!LIVE.turnOpen&&!aiLastUser)await new Promise(r=>setTimeout(r,1200));
+      try{const r=t?await t.execute(liveUnscrub(fc.args||{})):(()=>{throw new Error('Bilinmeyen araç')})();response={result:liveScrub(r)}}catch(e){response={error:String(e&&e.message||e)}}
+      out.push({id:fc.id,name:fc.name,response})}
+    if(LIVE.ws&&LIVE.ws.readyState===1)LIVE.ws.send(JSON.stringify({toolResponse:{functionResponses:out}}));liveTouch()}
+  if(m.goAway){aiStatus='Oturum süresi doluyor, yeniden dokunarak devam edin.';aiPaint()}
+}
+function liveStop(quiet){clearInterval(LIVE.idle);LIVE.idle=null;try{LIVE.micNode&&LIVE.micNode.disconnect()}catch(e){}try{LIVE.micCtx&&LIVE.micCtx.close()}catch(e){}LIVE.micCtx=null;LIVE.micNode=null;
+  if(LIVE.micStream){LIVE.micStream.getTracks().forEach(t=>t.stop());LIVE.micStream=null}liveHush();liveFlush();
+  const ws=LIVE.ws;LIVE.ws=null;if(ws&&ws.readyState<2)try{ws.close(1000)}catch(e){}LIVE.turnOpen=false;if(!quiet)liveSet('off','');else{LIVE.state='off';aiState='idle'}save()}
+function liveToggle(){if(LIVE.ws){liveStop();return}liveStart()}
+function liveText(t){if(!LIVE.ws||LIVE.ws.readyState!==1){toast('Önce mikrofona dokunup bağlanın');return}LIVE.turnOpen=true;aiTurnNo++;aiLastUser=t;S.aiChat=S.aiChat||[];S.aiChat.push({r:'u',x:t,t:new Date().toISOString()});aiPaint();
+  LIVE.ws.send(JSON.stringify({realtimeInput:{text:t}}));liveTouch()}
+
+function aiMicClick(){if(LIVE.ok&&MODE==='app'){liveToggle();return}
   if(AI.tts&&aiState==='speaking'){try{AI.tts.stop()}catch(e){}}
   if(!AI.dict){toast('Bu görünümde mikrofon yok. Bilgisayarda Chrome veya Claude masaüstü uygulamasıyla açın, ya da yazın.');return}
   if(aiBusy){if(aiCtl)aiCtl.abort();return}
@@ -1100,7 +1163,7 @@ BAĞLAM: Bugün ${new Date().toLocaleDateString('tr-TR',{weekday:'long',day:'num
 Kişiler: ${S.users.map(u=>u.name+' ('+ROLES[u.role].split(' (')[0]+(u.task?', '+(TASKS[u.task]||''):'')+')').join(', ')}.
 Tedarikçiler: ${(S.suppliers||[]).map(t=>t.name).join(', ')||'yok'}. Esnaflar: ${(S.esnaf||[]).map(e=>e.shop).join(', ')||'yok'}. Motorlar: ${S.engines.map(e=>e.name).join(', ')}. Kayıtlı konumlar: ${places().map(p=>p.name).join(', ')||'yok'}.
 Onay bekleyen işlemler: ${aiPend().map(p=>p.id+': '+p.title).join(' | ')||'yok'}.`}
-async function aiAsk(text){text=String(text||'').trim();if(!text||aiBusy)return;await aiSetup();
+async function aiAsk(text){if(LIVE.ok&&MODE==='app'){liveText(String(text||'').trim());return}text=String(text||'').trim();if(!text||aiBusy)return;await aiSetup();
   if(!AI.sample){aiStatus='Yapay zeka bu görünümde kullanılamıyor (claude.ai içinde açın).';aiPaint();return}
   aiLastUser=text;aiTurnNo++;(S.aiChat=S.aiChat||[]).push({r:'u',x:text,t:new Date().toISOString()});aiTurns.push({role:'user',content:text});
   {const P0=(S.aiPending||[]).filter(p=>p.status==='bekliyor'&&p.turn<aiTurnNo),mt=Math.max(-1,...P0.map(p=>p.turn)),LP=P0.filter(p=>p.turn===mt),wc=aiNorm(text).split(' ').length;
@@ -1129,7 +1192,7 @@ function pAsistan(){setTimeout(aiSetup,0);const pend=aiPend();
   const C=(S.aiChat||[]).slice(-30);
   h+=`<div class="aithread" id="aithread">${C.length?'':`<div class="empty">Mikrofona dokunup konuşun. Örnekler: "Bugün kaç işimiz var?", "Ahmet'in üzerinde ne var?", "Stokta azalan ne var, Osman'a sipariş verelim", "Mehmet'e mesaj at, yanıma gelsin".</div>`}${C.map(m=>`<div class="aimsg ${m.r}"${m.live?' id="ailive"':''}>${esc(m.x||(m.live?'…':''))}</div>`).join('')}${aiPartial||aiBuf?`<div class="aimsg u partial">${esc((aiBuf+' '+aiPartial).trim())}</div>`:''}${pend.slice(-3).map(aiCard).join('')}</div>
   <div class="aibar"><button class="aimic${aiState==='listening'?' on':''}" data-act="aimic" aria-label="${aiState==='listening'?'Dinlemeyi bitir':'Konuşmak için dokunun'}">${aiBusy?'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>':MIC_BIG}</button>
-  <div class="aistat" id="aistat">${esc(aiStatus||(aiBusy?'Düşünüyor…':AI.dict===null?'Bu görünümde mikrofon yok; aşağıya yazabilirsiniz.':'Konuşmak için dokunun'))}</div>
+  <div class="aistat" id="aistat">${esc(aiStatus||(aiBusy?'Düşünüyor…':LIVE.ws?'Dinliyorum… kapatmak için dokunun':AI.dict===null&&!LIVE.ok?'Bu görünümde mikrofon yok; aşağıya yazabilirsiniz.':'Konuşmak için dokunun'))}</div>
   <div class="aitype"><input type="text" id="ai-text" placeholder="veya yazın…" aria-label="Asistana yazın"><button class="btn" data-act="aisend">Gönder</button></div></div>`;
   return h}
 function aiPaint(){if(!(view()==='panel'&&panelTab==='asistan')){aiFab();return}const a=document.activeElement,typing=a&&a.id==='ai-text'?a.value:null;render();if(typing!==null){const t=document.getElementById('ai-text');if(t){t.value=typing;t.focus()}}const th=document.getElementById('aithread');if(th)setTimeout(()=>window.scrollTo(0,document.body.scrollHeight),0)}
