@@ -527,6 +527,7 @@ body.inchat main{padding-bottom:calc(var(--chath,140px) + 16px)!important}
 .aifab .dot svg{width:18px;height:18px}
 .aifab .nbadge{position:absolute;top:-4px;right:-2px}
 body.inchat .aifab,body.ulogin .aifab{display:none}
+.aifab{touch-action:none;user-select:none;-webkit-user-select:none}.aifab.drag{opacity:.85;box-shadow:0 10px 30px rgba(0,0,0,.4);transition:none}.aifab.placed{right:auto;bottom:auto}
 .aiwrap{display:flex;flex-direction:column;gap:12px}
 .aihead{display:flex;align-items:center;gap:12px}
 .aiav{width:52px;height:52px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffd28a,#f2a531 55%,#a86400);display:grid;place-items:center;color:#1b1305;flex:none;box-shadow:0 0 0 0 rgba(242,165,49,.6)}
@@ -965,9 +966,22 @@ let aiSeg='konus',aiTurns=[],aiBusy=false,aiState='idle',aiPartial='',aiBuf='',a
 function trEk(n,t){n=String(n||'').trim();const v=(n.toLocaleLowerCase('tr').match(/[aeıioöuü]/g)||['e']).pop(),back='aıou'.includes(v),endV=/[aeıioöuü]$/i.test(n),hard=/[fstkçşhp]$/i.test(n);
   return n+"'"+(t==='e'?(endV?'y':'')+(back?'a':'e'):(hard?'t':'d')+(back?'an':'en'))}
 function aiPend(){return (S.aiPending||[]).filter(p=>p.status==='bekliyor')}
+function fabGet(){try{return JSON.parse(localStorage.getItem('eo-fab')||'null')}catch(e){return null}}
+function fabPlace(b){const p=fabGet();if(!p){b.classList.remove('placed');b.style.left=b.style.top='';return}const W=innerWidth,H=innerHeight,bw=b.offsetWidth||140,bh=b.offsetHeight||56;
+  const x=p.side==='l'?12:W-bw-12,y=Math.min(H-bh-8,Math.max(8,p.y*H));b.classList.add('placed');b.style.left=x+'px';b.style.top=y+'px'}
+function fabDrag(b){let st=null,moved=false;
+  b.addEventListener('pointerdown',e=>{st={x:e.clientX,y:e.clientY,l:b.getBoundingClientRect().left,t:b.getBoundingClientRect().top,id:e.pointerId};moved=false;try{b.setPointerCapture(e.pointerId)}catch(x){}});
+  b.addEventListener('pointermove',e=>{if(!st)return;const dx=e.clientX-st.x,dy=e.clientY-st.y;if(!moved&&Math.hypot(dx,dy)<10)return;
+    if(!moved){moved=true;b.classList.add('drag','placed');try{b.setPointerCapture(st.id)}catch(x){}}
+    b.style.left=Math.min(innerWidth-b.offsetWidth-4,Math.max(4,st.l+dx))+'px';b.style.top=Math.min(innerHeight-b.offsetHeight-4,Math.max(4,st.t+dy))+'px';e.preventDefault()});
+  const end=e=>{if(!st)return;if(moved){const r=b.getBoundingClientRect();const p={side:r.left+r.width/2<innerWidth/2?'l':'r',y:r.top/innerHeight};try{localStorage.setItem('eo-fab',JSON.stringify(p))}catch(x){}
+      b.classList.remove('drag');fabPlace(b);b.dataset.justDragged='1';setTimeout(()=>{delete b.dataset.justDragged},350)}st=null};
+  b.addEventListener('pointerup',end);b.addEventListener('pointercancel',end);
+  b.addEventListener('click',e=>{if(b.dataset.justDragged){e.stopImmediatePropagation();e.preventDefault()}},true);
+  addEventListener('resize',()=>fabPlace(b))}
 function aiFab(){let b=document.getElementById('aifab');const show=MODE==='app'&&CUR&&ROLE==='owner'&&!(view()==='panel'&&panelTab==='asistan');
   if(!show){if(b)b.remove();return}
-  if(!b){b=document.createElement('button');b.id='aifab';b.className='aifab';b.dataset.act='aiopen';document.body.appendChild(b)}
+  if(!b){b=document.createElement('button');b.id='aifab';b.className='aifab';b.dataset.act='aiopen';document.body.appendChild(b);fabDrag(b)}fabPlace(b);
   const n=aiPend().length;b.innerHTML=`<span class="dot">${AI_SVG}</span>Asistan${n?`<i class="nbadge">${n}</i>`:''}`;b.setAttribute('aria-label','Yapay zeka asistanı'+(n?', '+n+' onay bekliyor':''))}
 async function aiSetup(){if(aiInit)return;aiInit=true;(S.aiChat||[]).forEach(m=>{if(m.live){delete m.live;if(!m.x)m.x='(yarım kaldı)'}});const u=n=>window.claude&&window.claude.use?window.claude.use(n).catch(()=>null):Promise.resolve(null);
   const [s,d,t]=await Promise.all([u('sample'),u('dictation'),u('tts')]);AI.sample=s;AI.dict=d;AI.tts=t;
