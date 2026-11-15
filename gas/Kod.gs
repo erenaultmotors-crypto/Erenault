@@ -52,12 +52,20 @@ function doPost(e) {
   var out;
   try {
     var b = JSON.parse((e && e.postData && e.postData.contents) || '{}');
-    var fns = { apiAiThink: apiAiThink, apiPushToken: apiPushToken, apiBoot: apiBoot, apiSetup: apiSetup, apiLogin: apiLogin, apiPull: apiPull, apiPush: apiPush, apiUpload: apiUpload, apiFile: apiFile,
+    var fns = { apiPublicBoot: apiPublicBoot, apiAiThink: apiAiThink, apiPushToken: apiPushToken, apiBoot: apiBoot, apiSetup: apiSetup, apiLogin: apiLogin, apiPull: apiPull, apiPush: apiPush, apiUpload: apiUpload, apiFile: apiFile,
       apiPubFile: apiPubFile, apiSigData: apiSigData, apiSavePdf: apiSavePdf, apiAiToken: apiAiToken, apiSubmitQuote: apiSubmitQuote, apiSign: apiSign };
     if (!fns[b.fn]) throw new Error('NOFN');
     out = { ok: true, r: fns[b.fn].apply(null, b.args || []) };
   } catch (err) { out = { ok: false, e: String(err && err.message || err) }; }
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// Müşteri teklif / sözleşme sayfası (GitHub'dan açılan) için: fiyat listesi ve sözleşme
+function apiPublicBoot(p) {
+  p = p || {};
+  var b = buildBoot({ s: p.s ? String(p.s).slice(0, 80) : '' });
+  delete b.users; delete b.setup;
+  return b;
 }
 
 function apiBoot() {

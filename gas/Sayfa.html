@@ -769,7 +769,7 @@ const eng=id=>S.engines.find(e=>e.id===id)||S.engines[0];
 const req=()=>[], ext=()=>[];
 function phoneWa(p){let d=String(p||'').replace(/\D/g,'');if(d.startsWith('0'))d='9'+d;if(d.length===10&&d[0]==='5')d='90'+d;return d}
 function waShow(p){const d=phoneWa(p);if(d.startsWith('90')&&d.length===12){const x='0'+d.slice(2);return x.slice(0,4)+' '+x.slice(4,7)+' '+x.slice(7,9)+' '+x.slice(9)}return '+'+d}
-function custLink(){return BOOT.url}
+function custLink(){return window.EO_TEKLIF||BOOT.url}
 function waLink(phone,text){return 'https://wa.me/'+phoneWa(phone)+'?text='+encodeURIComponent(text)}
 
 function tierIdx(part,tier){const i=part.opts.findIndex(o=>o.t===tier);return i<0?0:i}
@@ -1002,7 +1002,7 @@ async function aiSetup(){if(aiInit)return;aiInit=true;(S.aiChat||[]).forEach(m=>
   aiPaint()}
 async function aiAutoSend(){if(!AI.dict||aiState!=='listening')return;try{await AI.dict.stop()}catch(e){}const txt=aiBuf.trim();aiBuf='';aiPartial='';if(txt)aiAsk(txt);else{aiState='idle';aiPaint()}}
 /* ===== Gemini Live: canlı sesli asistan (sadece patron, APK / Google sürümü) ===== */
-const LIVE={ok:true,ws:null,state:'off',micCtx:null,micNode:null,micStream:null,outCtx:null,next:0,srcs:[],idle:null,lastAct:0,userTxt:'',botTxt:'',demo:false,alias:{},turnOpen:false,waitTx:null};
+const LIVE={endPending:false,unread:0,ok:true,ws:null,state:'off',micCtx:null,micNode:null,micStream:null,outCtx:null,next:0,srcs:[],idle:null,lastAct:0,userTxt:'',botTxt:'',demo:false,alias:{},turnOpen:false,waitTx:null};
 const LIVE_URL='wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token=';
 function liveSchema(s){if(!s||typeof s!=='object')return s;const o={};for(const k in s){const v=s[k];if(k==='type')o.type=String(v).toUpperCase();else if(k==='properties'){o.properties={};for(const p in v)o.properties[p]=liveSchema(v[p])}else if(k==='items')o.items=liveSchema(v);else o[k]=v}return o}
 function liveScrub(v){if(!LIVE.demo)return v;const names=S.sales.map(s=>s.customer&&s.customer.name).filter(Boolean);
@@ -1035,20 +1035,23 @@ function liveMic(){const ctx=new (window.AudioContext||window.webkitAudioContext
   node.onaudioprocess=e=>{if(!LIVE.ws||LIVE.ws.readyState!==1)return;const f=e.inputBuffer.getChannelData(0),i16=new Int16Array(f.length);for(let i=0;i<f.length;i++){const v=Math.max(-1,Math.min(1,f[i]));i16[i]=v<0?v*0x8000:v*0x7fff}
     LIVE.ws.send(JSON.stringify({realtimeInput:{audio:{data:b64FromI16(i16),mimeType:'audio/pcm;rate=16000'}}}))}}
 function livePlay(b64){const ctx=LIVE.outCtx,i16=i16FromB64(b64),buf=ctx.createBuffer(1,i16.length,24000),ch=buf.getChannelData(0);for(let i=0;i<i16.length;i++)ch[i]=i16[i]/0x8000;
-  const s=ctx.createBufferSource();s.buffer=buf;s.connect(ctx.destination);const t=Math.max(ctx.currentTime+0.03,LIVE.next);s.start(t);LIVE.next=t+buf.duration;LIVE.srcs.push(s);s.onended=()=>{LIVE.srcs=LIVE.srcs.filter(x=>x!==s);if(!LIVE.srcs.length&&LIVE.state==='speaking')liveSet('listening','Dinliyorum… konuşabilirsiniz')}}
+  const s=ctx.createBufferSource();s.buffer=buf;s.connect(ctx.destination);const t=Math.max(ctx.currentTime+0.03,LIVE.next);s.start(t);LIVE.next=t+buf.duration;LIVE.srcs.push(s);s.onended=()=>{LIVE.srcs=LIVE.srcs.filter(x=>x!==s);if(!LIVE.srcs.length){if(LIVE.endPending){liveMaybeEnd();return}if(LIVE.state==='speaking')liveSet('listening','Dinliyorum… konuşabilirsiniz')}}}
 function liveHush(){LIVE.srcs.forEach(s=>{try{s.stop()}catch(e){}});LIVE.srcs=[];LIVE.next=0}
 function liveTouch(){LIVE.lastAct=Date.now()}
+function liveEndSoon(){LIVE.endPending=true;setTimeout(()=>{if(LIVE.ws&&LIVE.endPending)liveFinish()},12000)}
+function liveFinish(){LIVE.endPending=false;liveStop();aiStatus='Görüşmek üzere. Konuşmak için tekrar dokunun.';aiPaint()}
+function liveMaybeEnd(){if(LIVE.endPending&&!LIVE.srcs.length)setTimeout(()=>{if(LIVE.endPending&&!LIVE.srcs.length)liveFinish()},600)}
 function liveFlush(){const u=LIVE.userTxt.trim(),b=LIVE.botTxt.trim();LIVE.userTxt='';LIVE.botTxt='';S.aiChat=S.aiChat||[];
   if(u)S.aiChat.push({r:'u',x:u,t:new Date().toISOString()});if(b)S.aiChat.push({r:'a',x:b,t:new Date().toISOString()});if(S.aiChat.length>60)S.aiChat=S.aiChat.slice(-60);if(u||b)aiPaint()}
 async function liveMsg(m){
-  if(m.setupComplete){liveMic();liveTouch();LIVE.idle=setInterval(()=>{if(Date.now()-LIVE.lastAct>120000){liveStop();aiStatus='2 dakika konuşulmadığı için kapattım. Tekrar dokunun.';aiPaint()}},5000);
+  if(m.setupComplete){liveMic();liveTouch();LIVE.unread=msgUnread();LIVE.idle=setInterval(()=>{if(Date.now()-LIVE.lastAct>120000){liveStop();aiStatus='2 dakika konuşulmadığı için kapattım. Tekrar dokunun.';aiPaint();return}const u=msgUnread();if(u>LIVE.unread&&LIVE.ws&&LIVE.ws.readyState===1&&LIVE.state==='listening'&&!LIVE.turnOpen){const last=myMsgs().filter(x=>x.from!==CUR.id&&!(x.readBy||{})[CUR.id]).pop();LIVE.ws.send(JSON.stringify({realtimeInput:{text:'(Sistem bilgisi, patron söylemedi: '+(last?uname(last.from):'Biri')+' yeni bir mesaj gönderdi. Patrona tek cümleyle haber ver ve okumamı ister misiniz diye sor.)'}}))}LIVE.unread=u},5000);
     liveSet('listening',LIVE.demo?'Dinliyorum… (deneme modu: müşteri adları gizli gider)':'Dinliyorum… konuşabilirsiniz');return}
   const sc=m.serverContent;
   if(sc){if(sc.inputTranscription&&sc.inputTranscription.text){if(!LIVE.turnOpen){LIVE.turnOpen=true;aiTurnNo++;aiLastUser=''}aiLastUser+=sc.inputTranscription.text;LIVE.userTxt+=sc.inputTranscription.text;liveTouch()}
     if(sc.interrupted){liveHush();liveSet('listening','Dinliyorum…')}
     if(sc.modelTurn&&sc.modelTurn.parts)sc.modelTurn.parts.forEach(p=>{if(p.inlineData&&p.inlineData.data){if(LIVE.state!=='speaking')liveSet('speaking','Konuşuyor… (sözünü kesebilirsiniz)');livePlay(p.inlineData.data);liveTouch()}});
     if(sc.outputTranscription&&sc.outputTranscription.text)LIVE.botTxt+=sc.outputTranscription.text;
-    if(sc.turnComplete){LIVE.turnOpen=false;liveFlush();liveTouch();save()}}
+    if(sc.turnComplete){LIVE.turnOpen=false;liveFlush();liveTouch();save();liveMaybeEnd()}}
   if(m.toolCall){liveSet('thinking','Bakıyorum…');const T=aiTools(),out=[];
     for(const fc of (m.toolCall.functionCalls||[])){const t=T.find(x=>x.name===fc.name);let response;
       if(fc.name==='onay_cevabi'&&!LIVE.turnOpen&&!aiLastUser)await new Promise(r=>setTimeout(r,1200));
@@ -1057,7 +1060,7 @@ async function liveMsg(m){
     if(LIVE.ws&&LIVE.ws.readyState===1)LIVE.ws.send(JSON.stringify({toolResponse:{functionResponses:out}}));liveTouch()}
   if(m.goAway){aiStatus='Oturum süresi doluyor, yeniden dokunarak devam edin.';aiPaint()}
 }
-function liveStop(quiet){clearInterval(LIVE.idle);LIVE.idle=null;try{LIVE.micNode&&LIVE.micNode.disconnect()}catch(e){}try{LIVE.micCtx&&LIVE.micCtx.close()}catch(e){}LIVE.micCtx=null;LIVE.micNode=null;
+function liveStop(quiet){LIVE.endPending=false;clearInterval(LIVE.idle);LIVE.idle=null;try{LIVE.micNode&&LIVE.micNode.disconnect()}catch(e){}try{LIVE.micCtx&&LIVE.micCtx.close()}catch(e){}LIVE.micCtx=null;LIVE.micNode=null;
   if(LIVE.micStream){LIVE.micStream.getTracks().forEach(t=>t.stop());LIVE.micStream=null}liveHush();liveFlush();
   const ws=LIVE.ws;LIVE.ws=null;if(ws&&ws.readyState<2)try{ws.close(1000)}catch(e){}LIVE.turnOpen=false;if(!quiet)liveSet('off','');else{LIVE.state='off';aiState='idle'}save()}
 function liveToggle(){if(LIVE.ws){liveStop();return}liveStart()}
@@ -1117,8 +1120,8 @@ function aiTools(){if(!Object.keys(AI_READ_MAP).length){AI_TOOLS_READ.forEach(t=
  {name:'veri_oku',description:'Uygulamanın güncel verisini okur. konu: '+AI_TOOLS_READ.map(t=>t.name).join(', ')+'. Ek alanlar: kisi (çalışan adı), durum (acik/biten/geciken/bugun/hepsi veya satış durumu geldi/satildi/teslim), gun (bugun/hafta/ay), parca, motor, sadece_azalan. Her soruda yeniden çağır.',
   inputSchema:{type:'object',properties:{konu:{type:'string',enum:AI_TOOLS_READ.map(t=>t.name)},kisi:{type:'string'},durum:{type:'string'},gun:{type:'string'},parca:{type:'string'},motor:{type:'string'},sadece_azalan:{type:'boolean'}},required:['konu']},
   execute:i=>{const t=AI_READ_MAP[String(i.konu)];if(!t)throw new Error('Bilinmeyen konu. Konular: '+Object.keys(AI_READ_MAP).join(', '));return t.execute(i||{})}},
- {name:'islem_hazirla',description:'Bir işlemi onaya hazırlar, YAPMAZ. tur: is_ata (kisi, satis, is_turu: hazirlama/teslimat/diger, not, termin), is_aktar (is_id, yeni_kisi), mesaj_gonder (kime: çalışan adı veya ekip, metin), konum_gonder (kime, konum), durum_sor (kisi), tedarikci_siparisi (tedarikci, kalemler:[{parca,adet}]), esnaf_siparisi (esnaf, motor, adet, eski_motor: getirdi/sonra/yok), stok_girisi (parca, adet), hazirlama_isi (motor, adet, kisi, termin: stoğa motor hazırlatma), bagimsiz_is (kisi, is, yer, termin: satıştan bağımsız iş). onay_id döner; sonra patrona tek kısa cümleyle onay sor.',
-  inputSchema:{type:'object',properties:{is:{type:'string'},yer:{type:'string'},tur:{type:'string',enum:['is_ata','is_aktar','mesaj_gonder','konum_gonder','durum_sor','tedarikci_siparisi','esnaf_siparisi','stok_girisi','hazirlama_isi','bagimsiz_is']},kisi:{type:'string'},satis:{type:'string'},is_turu:{type:'string'},not:{type:'string'},termin:{type:'string'},is_id:{type:'string'},yeni_kisi:{type:'string'},kime:{type:'string'},metin:{type:'string'},konum:{type:'string'},tedarikci:{type:'string'},kalemler:{type:'array',items:{type:'object',properties:{parca:{type:'string'},adet:{type:'number'}}}},esnaf:{type:'string'},motor:{type:'string'},adet:{type:'number'},eski_motor:{type:'string'},parca:{type:'string'}},required:['tur']},
+ {name:'islem_hazirla',description:'Bir işlemi onaya hazırlar, YAPMAZ; onay_id döner, sonra patrona tek kısa cümleyle onay sor. tur ve alanları: is_ata (kisi, satis, is_turu, not, termin), is_aktar (is_id, yeni_kisi), mesaj_gonder (kime, metin), konum_gonder (kime, konum), durum_sor (kisi), tedarikci_siparisi (tedarikci, kalemler:[{parca,adet}]), esnaf_siparisi (esnaf, motor, adet, eski_motor), stok_girisi (parca, adet), hazirlama_isi (motor, adet, kisi, termin), bagimsiz_is (kisi, is, yer, termin), yeni_satis (musteri, telefon, motor, adet, eski_motor, plaka), teklif_formu_gonder (musteri, telefon), sozlesme_gonder (satis), tahsilat (satis, tutar, yontem), teslim_edildi (satis), teklif_onayla (satis), siparis_onayla (siparis, karar), siparis_teslim_al (siparis), tedarikciye_odeme (tedarikci, tutar, yontem), esnaf_tahsilat (esnaf, tutar, yontem), musteriye_mesaj (satis, metin), calisan_ekle (ad, gorev, telefon), sifre_yenile (kisi).',
+  inputSchema:{type:'object',properties:{musteri:{type:'string'},telefon:{type:'string'},plaka:{type:'string'},tutar:{type:'number'},yontem:{type:'string'},siparis:{type:'string'},karar:{type:'string'},ad:{type:'string'},gorev:{type:'string'},is:{type:'string'},yer:{type:'string'},tur:{type:'string',enum:['is_ata','is_aktar','mesaj_gonder','konum_gonder','durum_sor','tedarikci_siparisi','esnaf_siparisi','stok_girisi','hazirlama_isi','bagimsiz_is','yeni_satis','teklif_formu_gonder','sozlesme_gonder','tahsilat','teslim_edildi','teklif_onayla','siparis_onayla','siparis_teslim_al','tedarikciye_odeme','esnaf_tahsilat','musteriye_mesaj','calisan_ekle','sifre_yenile']},kisi:{type:'string'},satis:{type:'string'},is_turu:{type:'string'},not:{type:'string'},termin:{type:'string'},is_id:{type:'string'},yeni_kisi:{type:'string'},kime:{type:'string'},metin:{type:'string'},konum:{type:'string'},tedarikci:{type:'string'},kalemler:{type:'array',items:{type:'object',properties:{parca:{type:'string'},adet:{type:'number'}}}},esnaf:{type:'string'},motor:{type:'string'},adet:{type:'number'},eski_motor:{type:'string'},parca:{type:'string'}},required:['tur']},
   execute:i=>{const t=AI_ACT_MAP[String(i.tur)];if(!t||i.tur==='onayla'||i.tur==='iptal')throw new Error('Bilinmeyen işlem türü');const a={...i};if(i.tur==='is_ata')a.tur=i.is_turu||'diger';return t.execute(a)}},
  {name:'onay_cevabi',description:'Patron bekleyen işleme cevap verdiğinde çağır. karar: evet (patron evet/tamam/yap dedi) veya hayir (hayır/dur/vazgeç dedi). Patron cevap vermeden ASLA evet ile çağırma.',
   inputSchema:{type:'object',properties:{onay_id:{type:'string'},karar:{type:'string',enum:['evet','hayir']}},required:['onay_id','karar']},
@@ -1133,12 +1136,37 @@ function aiTools(){if(!Object.keys(AI_READ_MAP).length){AI_TOOLS_READ.forEach(t=
   inputSchema:{type:'object',properties:{metin:{type:'string'},zaman:{type:'string'}},required:['metin','zaman']},
   execute:i=>{const d=new Date(String(i.zaman));if(isNaN(d))throw new Error('Zaman anlaşılamadı; tarih ve saati sor');if(d.getTime()<Date.now()-60000)throw new Error('Bu zaman geçmişte');
     const r={id:rid(),text:String(i.metin).slice(0,300),at:d.toISOString(),done:false,t:new Date().toISOString()};(S.reminders=S.reminders||[]).push(r);(S.aiLog=S.aiLog||[]).push({t:r.t,title:'Hatırlatma kuruldu: '+r.text,result:fdt(r.at),kind:'rem'});save();aiPaint();return 'kuruldu: '+fdt(r.at)}},
+ {name:'sayfa_ac',description:'Uygulamada bir sayfayı açar (onaysız). sayfa: satislar, isler, stok, hazir_motorlar, siparisler, tedarikciler, kasa (gelir-gider/muhasebe), musteriler, esnaf, fiyatlar (motorlar ve fiyatlar), bildirimler, mesajlar, asistan. kisi: işlerde veya mesajlarda o kişi; satis: o satışın kartı.',
+  inputSchema:{type:'object',properties:{sayfa:{type:'string',enum:['satislar','isler','stok','hazir_motorlar','siparisler','tedarikciler','kasa','musteriler','esnaf','fiyatlar','bildirimler','mesajlar','asistan']},kisi:{type:'string'},satis:{type:'string'}},required:['sayfa']},
+  execute:i=>aiGo(i)},
+ {name:'mesajlari_oku',description:'Patrona gelen okunmamış (veya bir kişiden gelen son) mesajları getirir ve okundu yapar. kisi verilirse sadece o kişinin.',
+  inputSchema:{type:'object',properties:{kisi:{type:'string'}}},
+  execute:i=>{const u=i.kisi?(aiNorm(i.kisi)==='ekip'?{id:'ekip',name:'Ekip'}:aiUser(i.kisi)):null;const t=new Date().toISOString();
+    let L=myMsgs().filter(m=>m.from!==CUR.id&&!m.deleted&&(!u||(u.id==='ekip'?m.to==='ekip':m.from===u.id)));const un=L.filter(m=>!(m.readBy||{})[CUR.id]);L=(un.length?un:L.slice(-5)).slice(-15);
+    const out=L.map(m=>({kimden:uname(m.from),nereye:m.to==='ekip'?'Ekip grubu':'size',zaman:ago(m.t),metin:m.text||(m.audio?'(sesli mesaj, dinlemek için mesajlar sayfası)':m.photo?'(fotoğraf)':m.loc?'(konum: '+(m.loc.name||'')+')':m.doc?'(belge: '+(m.doc.name||'')+')':'')}));
+    L.forEach(m=>{m.readBy=m.readBy||{};if(!m.readBy[CUR.id])m.readBy[CUR.id]=t});save();return out.length?{okunmamis:un.length,mesajlar:out}:'Yeni mesaj yok'}},
+ {name:'konusmayi_bitir',description:'Patron konuşmayı bitirmek istediğinde (bitir, yeter, sağ ol, görüşürüz, kapat) önce kısa veda et, sonra bunu çağır; mikrofon kapanır.',
+  execute:()=>{aiEnding=true;if(typeof liveEndSoon==='function')liveEndSoon();else setTimeout(()=>{try{AI.dict&&AI.dict.active()&&AI.dict.stop()}catch(e){}},300);return 'kapatılıyor'}},
  {name:'derin_dusun',description:'Öncelik, plan, strateji, iş dağıtımı, stok/sipariş planlaması gibi düşünmek gereken sorularda güncel tüm verilerle derinlemesine analiz yapar ve öneri üretir. 5-15 saniye sürer.',
   inputSchema:{type:'object',properties:{soru:{type:'string'}},required:['soru']},
   execute:async i=>({analiz:await deepThink(i.soru)})}]}
 function aiAutoGet(){try{return localStorage.getItem('eo-autolisten')==='1'}catch(e){return false}}
 function aiAutoOpen(listen){if(ROLE!=='owner')return;panelTab='asistan';aiSeg='konus';if(location.hash!=='#panel')location.hash='panel';render();if(listen&&typeof liveStart==='function'&&!LIVE.ws)setTimeout(liveStart,500)}
 function aiSnapshot(){const o={};['gunluk_ozet','calisanlar','stok','odemeler','hazir_motorlar'].forEach(k=>{try{o[k]=AI_TOOLS_READ.find(t=>t.name===k).execute({})}catch(e){}});try{o.acik_isler=AI_TOOLS_READ.find(t=>t.name==='isler').execute({durum:'acik'})}catch(e){}return JSON.stringify(o).slice(0,60000)}
+let aiEnding=false;
+function aiGo(i){const pg=i.sayfa;let what={satislar:'Satışlar',isler:'İşler',stok:'Stok',hazir_motorlar:'Hazır motorlar',siparisler:'Siparişler',tedarikciler:'Tedarikçiler',kasa:'Kasa',musteriler:'Müşteriler',esnaf:'Esnaflar',fiyatlar:'Motorlar ve fiyatlar',bildirimler:'Bildirimler',asistan:'Asistan'}[pg]||pg;
+  if(pg==='mesajlar'){msgConv=null;if(i.kisi){const u=aiNorm(i.kisi)==='ekip'?{id:'ekip'}:aiUser(i.kisi);msgConv=u.id}location.hash='mesaj';setTimeout(render,0);return 'Mesajlar açıldı'}
+  const map={satislar:'satislar',isler:'isler',stok:'stok',hazir_motorlar:'stok',siparisler:'stok',tedarikciler:'stok',kasa:'muhasebe',musteriler:'musteriler',esnaf:'esnaf',fiyatlar:'fiyatlar',bildirimler:'bildirim',asistan:'asistan'};
+  panelTab=map[pg]||'satislar';
+  if(pg==='hazir_motorlar')stokSeg='motor';else if(pg==='siparisler')stokSeg='siparis';else if(pg==='tedarikciler')stokSeg='tedarik';else if(pg==='stok')stokSeg='stok';
+  if(pg==='isler'){workSeg='takip';workUser=null;if(i.kisi){const u=aiUser(i.kisi);workUser=u.id;what='İşler: '+u.name}}
+  if(i.satis){const s=aiSale(i.satis);panelTab='satislar';pipeFilter=null;openSale=s.id;markSeen(s);what=s.customer.name+' satışı'}
+  if(location.hash!=='#panel')location.hash='panel';setTimeout(()=>{render();window.scrollTo(0,0);if(openSale&&i.satis)setTimeout(()=>{const el=document.querySelector(`[data-act="toggle"][data-id="${openSale}"]`);el&&el.closest('.sale')&&el.closest('.sale').scrollIntoView({block:'center'})},50)},0);
+  return what+' sayfası açıldı'}
+function aiPO(q,st){const n=String(q||'').toUpperCase().replace(/\s/g,'');const L=(S.pos||[]).filter(p=>!st||p.status===st);let po=L.find(p=>p.no===n||p.no.replace('SP-','')===n.replace('SP-',''));
+  if(!po){const t=aiFind(S.suppliers||[],q);if(t){const M=L.filter(p=>p.sup===t.id);if(M.length===1)po=M[0];else if(M.length>1)throw new Error(t.name+' için birden fazla sipariş var: '+M.map(p=>p.no).join(', ')+'; hangisi?')}}
+  if(!po)throw new Error('Sipariş bulunamadı'+(L.length?'. Uygun siparişler: '+L.map(p=>p.no+' '+supName(p.sup)).join(', '):''));return po}
+function aiWaMsg(p){if(!p.wa)return '';return `<div class="row"><a class="btn sm wa" href="${waLink(p.wa.phone,p.wa.text)}" target="_blank" rel="noopener">${WA_ICON}${esc(p.wa.label||'WhatsApp\'tan gönder')}</a></div>`}
 function aiQueue(kind,title,args){const dup=(S.aiPending||[]).find(x=>x.status==='bekliyor'&&x.kind===kind&&JSON.stringify(x.args)===JSON.stringify(args));if(dup){dup.turn=aiTurnNo;save();return{onay_id:dup.id,ozet:dup.title,talimat:'Bu işlem zaten onay bekliyor. Patrona tek kısa cümleyle onay sor.'}}const p={id:rid().slice(0,6),t:new Date().toISOString(),kind,title,args,status:'bekliyor',turn:aiTurnNo};(S.aiPending=S.aiPending||[]).push(p);save();aiPaint();
   return{onay_id:p.id,ozet:title,talimat:'İşlem HENÜZ YAPILMADI. Patrona tek kısa cümleyle onay sor. Evet derse onayla aracını bu onay_id ile çağır.'}}
 const AI_TOOLS_ACT=[
@@ -1173,6 +1201,46 @@ const AI_TOOLS_ACT=[
  {name:'bagimsiz_is',description:'Satıştan bağımsız iş verir (onay ister): kisi, is (ne yapılacak), yer (gidilecek yer, isteğe bağlı).',
   inputSchema:{type:'object',properties:{kisi:{type:'string'},is:{type:'string'},yer:{type:'string'},termin:{type:'string'}},required:['kisi','is']},
   execute:i=>{const u=aiUser(i.kisi);const pl=i.yer?(aiFind(places(),i.yer)||{name:String(i.yer),addr:String(i.yer)}):null;return aiQueue('task',`${trEk(u.name,'e')} iş: ${i.is}${pl?' ('+pl.name+')':''}`,{kind:pl?'git':'diger',to:[u.id],title:pl?pl.name+': '+i.is:String(i.is),place:pl?{name:pl.name,addr:pl.addr||'',url:pl.url||''}:null,due:i.termin||today()})}},
+ {name:'yeni_satis',description:'Yeni müşteri teklifi/satışı açar (onay ister). musteri adı, telefon, motor, adet, eski_motor (getirdi/sonra/yok), plaka. Onaydan sonra sözleşme linki WhatsApp ile gönderilebilir.',
+  inputSchema:{type:'object',properties:{musteri:{type:'string'},telefon:{type:'string'},motor:{type:'string'},adet:{type:'number'},eski_motor:{type:'string'},plaka:{type:'string'}},required:['musteri','telefon','motor']},
+  execute:i=>{const m=aiFind(S.engines,i.motor,x=>x.name+' '+x.code);if(!m)throw new Error('Motor bulunamadı. Motorlar: '+S.engines.map(x=>x.name).join(', '));const ph=String(i.telefon||'').replace(/[^\d+]/g,'');if(ph.replace(/\D/g,'').length<10)throw new Error('Telefon eksik; sor');
+   const q=newQ(m.id);q.qty=Math.max(1,Math.round(+i.adet||1));q.core=CORE[i.eski_motor]?i.eski_motor:'getirdi';return aiQueue('sale',`Yeni satış: ${i.musteri} · ${q.qty>1?q.qty+' adet ':''}${m.name} · ${fmt(compute(q).total)}`,{name:String(i.musteri).slice(0,80),phone:ph,plate:String(i.plaka||'').slice(0,20),engineId:m.id,qty:q.qty,core:q.core})}},
+ {name:'teklif_formu_gonder',description:'Bir müşteriye teklif formu linkini WhatsApp ile gönderir (onay ister; mesaj hazır açılır). musteri adı ve telefon.',
+  inputSchema:{type:'object',properties:{musteri:{type:'string'},telefon:{type:'string'}},required:['musteri','telefon']},
+  execute:i=>{const ph=String(i.telefon||'').replace(/[^\d+]/g,'');if(ph.replace(/\D/g,'').length<10)throw new Error('Telefon eksik; sor');return aiQueue('formsend',`${i.musteri} kişisine teklif formu gönder`,{name:String(i.musteri).slice(0,80),phone:ph})}},
+ {name:'sozlesme_gonder',description:'Bir satışın sözleşme/imza linkini müşteriye WhatsApp ile gönderir (onay ister).',
+  inputSchema:{type:'object',properties:{satis:{type:'string'}},required:['satis']},
+  execute:i=>{const s=aiSale(i.satis);if(!s.customer.phone)throw new Error('Müşterinin telefonu yok');return aiQueue('contract',`${s.customer.name} için sözleşme linkini gönder`,{sid:s.id})}},
+ {name:'tahsilat',description:'Müşteriden alınan ödemeyi kaydeder (onay ister). satis: satış no veya müşteri adı, tutar (TL), yontem (Nakit/Havale/Kart).',
+  inputSchema:{type:'object',properties:{satis:{type:'string'},tutar:{type:'number'},yontem:{type:'string'}},required:['satis','tutar']},
+  execute:i=>{const s=aiSale(i.satis),n=Math.round(+i.tutar||0);if(!(n>0))throw new Error('Tutar gerekli');return aiQueue('pay',`${s.customer.name}: ${fmt(n)} ödeme alındı (${i.yontem||'Nakit'}) · kalan ${fmt(Math.max(0,restOf(s)-n))}`,{sid:s.id,amt:n,method:String(i.yontem||'Nakit').slice(0,20)})}},
+ {name:'teslim_edildi',description:'Satışı teslim edildi olarak işaretler (onay ister). Ayrılmış hazır motor stoktan düşer.',
+  inputSchema:{type:'object',properties:{satis:{type:'string'}},required:['satis']},
+  execute:i=>{const s=aiSale(i.satis);if(s.status==='teslim')throw new Error('Zaten teslim edilmiş');return aiQueue('deliver',`${s.customer.name} (${s.no}) teslim edildi${restOf(s)>0?' · DİKKAT kalan borç '+fmt(restOf(s)):''}`,{sid:s.id})}},
+ {name:'teklif_onayla',description:'Müşteriden gelen teklifi onaylar (onay ister).',
+  inputSchema:{type:'object',properties:{satis:{type:'string'}},required:['satis']},
+  execute:i=>{const s=aiSale(i.satis);if(s.approved)throw new Error('Zaten onaylı');return aiQueue('approve',`${s.customer.name} teklifini onayla (${fmt(s.total)})`,{sid:s.id})}},
+ {name:'siparis_onayla',description:'Dükkanın verdiği ve onay bekleyen tedarikçi siparişini onaylar veya reddeder (onay ister). siparis: SP numarası veya tedarikçi adı; karar: onayla/reddet.',
+  inputSchema:{type:'object',properties:{siparis:{type:'string'},karar:{type:'string',enum:['onayla','reddet']}},required:['siparis']},
+  execute:i=>{const po=aiPO(i.siparis,'onay');const k=i.karar==='reddet'?'reddet':'onayla';return aiQueue('poappr',`${po.no} (${supName(po.sup)}) siparişini ${k==='onayla'?'onayla':'reddet'}`,{pid:po.id,k})}},
+ {name:'siparis_teslim_al',description:'Yoldaki tedarikçi siparişini teslim alındı yapar; parçalar stoğa eklenir (onay ister).',
+  inputSchema:{type:'object',properties:{siparis:{type:'string'}},required:['siparis']},
+  execute:i=>{const po=aiPO(i.siparis,'gonderildi');return aiQueue('porecv',`${po.no} (${supName(po.sup)}) teslim alındı: ${po.lines.map(l=>l.name+' '+l.qty).join(', ')}`,{pid:po.id})}},
+ {name:'tedarikciye_odeme',description:'Tedarikçiye yapılan ödemeyi kaydeder (onay ister).',
+  inputSchema:{type:'object',properties:{tedarikci:{type:'string'},tutar:{type:'number'},yontem:{type:'string'}},required:['tedarikci','tutar']},
+  execute:i=>{const t=aiFind(S.suppliers||[],i.tedarikci);if(!t)throw new Error('Tedarikçi bulunamadı');const n=Math.round(+i.tutar||0);if(!(n>0))throw new Error('Tutar gerekli');return aiQueue('suppay',`${trEk(t.name,'e')} ${fmt(n)} ödendi (${i.yontem||'Havale'}) · kalan borç ${fmt(Math.max(0,supDebt(t.id)-n))}`,{sup:t.id,amt:n,m:String(i.yontem||'Havale').slice(0,20)})}},
+ {name:'esnaf_tahsilat',description:'Esnaftan alınan ödemeyi kaydeder; en eski borçtan düşer (onay ister).',
+  inputSchema:{type:'object',properties:{esnaf:{type:'string'},tutar:{type:'number'},yontem:{type:'string'}},required:['esnaf','tutar']},
+  execute:i=>{const e=aiFind(S.esnaf||[],i.esnaf,x=>x.shop+' '+(x.name||''));if(!e)throw new Error('Esnaf bulunamadı');const n=Math.round(+i.tutar||0);if(!(n>0))throw new Error('Tutar gerekli');return aiQueue('espay',`${e.shop}: ${fmt(n)} tahsilat (${i.yontem||'Nakit'}) · kalan ${fmt(Math.max(0,esBal(e.id)-n))}`,{eid:e.id,amt:n,m:String(i.yontem||'Nakit').slice(0,20)})}},
+ {name:'musteriye_mesaj',description:'Bir müşteriye (satış no veya adıyla) WhatsApp mesajı hazırlar (onay ister); patron tek dokunuşla gönderir. Örn. ödeme hatırlatma, motorunuz hazır.',
+  inputSchema:{type:'object',properties:{satis:{type:'string'},metin:{type:'string'}},required:['satis','metin']},
+  execute:i=>{const s=aiSale(i.satis);if(!s.customer.phone)throw new Error('Müşterinin telefonu yok');return aiQueue('custwa',`${s.customer.name} kişisine WhatsApp: "${String(i.metin).slice(0,140)}"`,{sid:s.id,text:String(i.metin).slice(0,1000)})}},
+ {name:'calisan_ekle',description:'Yeni çalışan ekler, şifresini oluşturur (onay ister). gorev: hazirlama, teslimat veya dukkan (dükkan hesabı).',
+  inputSchema:{type:'object',properties:{ad:{type:'string'},gorev:{type:'string'},telefon:{type:'string'}},required:['ad']},
+  execute:i=>{const g=i.gorev==='dukkan'?'dukkan':(i.gorev==='teslimat'?'teslimat':'hazirlama');return aiQueue('useradd',`Yeni ${g==='dukkan'?'dükkan hesabı':'çalışan'}: ${i.ad}${g!=='dukkan'?' ('+(TASKS[g]||g)+')':''}`,{name:String(i.ad).slice(0,40),role:g==='dukkan'?'dukkan':'calisan',task:g==='dukkan'?'':g,phone:String(i.telefon||'').replace(/[^\d+]/g,'')})}},
+ {name:'sifre_yenile',description:'Bir çalışanın giriş şifresini yeniler (onay ister); yeni şifre WhatsApp ile gönderilebilir.',
+  inputSchema:{type:'object',properties:{kisi:{type:'string'}},required:['kisi']},
+  execute:i=>{const u=aiUser(i.kisi);if(u.role==='patron')throw new Error('Patron şifresi asistanla değiştirilemez');return aiQueue('pin',`${u.name} için yeni şifre oluştur`,{uid:u.id})}},
  {name:'stok_girisi',description:'Bir parçanın stoğuna adet ekler (eksi sayı düşer). Onay ister.',
   inputSchema:{type:'object',properties:{parca:{type:'string'},adet:{type:'number'}},required:['parca','adet']},
   execute:i=>{const p=aiFind(S.parts,i.parca);if(!p)throw new Error('Parça bulunamadı');const n=Math.round(+i.adet||0);if(!n)throw new Error('Adet gerekli');return aiQueue('stok',`${p.name} stoğuna ${n>0?'+':''}${n} adet`,{pid:p.id,n})}},
@@ -1197,6 +1265,23 @@ function aiRun(p){if(p.status!=='bekliyor')return 'Bu işlem zaten '+(p.status==
   else if(p.kind==='esnaf'){const e=(S.esnaf||[]).find(x=>x.id===a.eid);const q=newQ(a.engineId);q.qty=a.qty;q.core=a.core;q.name=e.shop;q.phone=e.phone;
     const s={id:'s'+Date.now(),no:nextNo(),token:rid(),kind:'esnaf',esnafId:e.id,customer:{name:e.shop,phone:e.phone,plate:''},status:'satildi',dates:{geldi:today(),satildi:today()},seen:true,approved:{u:CUR.name,t},...snapshot(q),delivery:{mode:e.addr?'adres':'dukkan',where:e.addr||''}};
     if(e.kvkk)s.kvkk={at:e.kvkk.at,how:'yuz',by:e.kvkk.by};s.by=CUR.name;S.sales.push(s);logAct(s,'Esnaf siparişi oluşturdu ('+a.qty+' adet)'+tag);if((S.settings.jobTrigger||'imza')!=='manuel')startJobs(s,true);reserveSale(s);res=s.no+' kaydedildi'}
+  else if(p.kind==='sale'){const q=newQ(a.engineId);q.qty=a.qty;q.core=a.core;q.name=a.name;q.phone=a.phone;
+    const s={id:'s'+Date.now(),no:nextNo(),token:rid(),customer:{name:a.name,phone:a.phone,plate:a.plate||''},status:'geldi',dates:{geldi:today()},seen:true,approved:{u:CUR.name,t},...snapshot(q),delivery:{mode:'dukkan',where:''}};s.by=CUR.name;S.sales.push(s);logAct(s,'Satış açtı'+tag);
+    p.wa={phone:a.phone,text:`Merhaba ${a.name.split(' ')[0]}, Eren Oto'dan yazıyoruz. Motorunuzun teklifi ve sözleşmesi bu linkte; inceleyip onaylayabilirsiniz: ${contractLink(s)}`,label:'Sözleşmeyi WhatsApp\'tan gönder'};res=s.no+' açıldı; sözleşme linki WhatsApp ile gönderilebilir'}
+  else if(p.kind==='formsend'){const s={id:'s'+Date.now(),no:nextNo(),customer:{name:a.name,phone:a.phone,plate:''},status:'gonderildi',dates:{gonderildi:today()},total:0};logAct(s,'Teklif formunu gönderdi'+tag);S.sales.push(s);
+    p.wa={phone:a.phone,text:`Merhaba ${a.name.split(' ')[0]}, Eren Oto'dan yazıyoruz. Motorunuzu bu linkten seçip fiyatını anında görebilirsiniz: ${custLink()}`,label:'Teklif formunu WhatsApp\'tan gönder'};res='mesaj hazır'}
+  else if(p.kind==='contract'){const s=S.sales.find(x=>x.id===a.sid);if(!s.token)s.token=rid();logAct(s,'Sözleşme linkini gönderdi'+tag);p.wa={phone:s.customer.phone,text:`Merhaba ${s.customer.name.split(' ')[0]}, Eren Oto'dan yazıyoruz. Motorunuzun sözleşmesi bu linkte; inceleyip onaylayabilirsiniz: ${contractLink(s)}`,label:'Sözleşmeyi WhatsApp\'tan gönder'};res='mesaj hazır'}
+  else if(p.kind==='pay'){const s=S.sales.find(x=>x.id===a.sid);const first=!(s.pays||[]).length;s.pays=(s.pays||[]).concat([{id:rid(),amt:a.amt,date:today(),method:a.method,by:CUR.name}]);logAct(s,fmt(a.amt)+' ödeme aldı ('+a.method+')'+tag);if(first)autoJobs(s,'kapora');res='kalan '+fmt(restOf(s))}
+  else if(p.kind==='deliver'){const s=S.sales.find(x=>x.id===a.sid);logAct(s,'Teslim edildi olarak işaretledi'+tag);s.status='teslim';deliverUnits(s);s.dates.teslim=today()}
+  else if(p.kind==='approve'){const s=S.sales.find(x=>x.id===a.sid);s.approved={u:CUR.name,t};logAct(s,'Teklifi onayladı'+tag);markSeen(s)}
+  else if(p.kind==='poappr'){const po=(S.pos||[]).find(x=>x.id===a.pid);if(!po||po.status!=='onay')throw new Error('Sipariş artık onay beklemiyor');if(a.k==='onayla'){po.status='gonderildi';po.apBy=CUR.name;po.apAt=t;po.pSeen=true;const sup=(S.suppliers||[]).find(x=>x.id===po.sup);if(sup&&sup.phone){p.po=po.id}res=po.no+' onaylandı'}else{po.status='red';po.pSeen=true;res=po.no+' reddedildi'}}
+  else if(p.kind==='porecv'){const po=(S.pos||[]).find(x=>x.id===a.pid);if(!po||po.status!=='gonderildi')throw new Error('Sipariş yolda değil');let tot=0;po.lines.forEach(l=>{const n=l.qty;l.got=n;tot+=n*l.cost;const pt=part(l.pid);if(pt&&n){pt.stock=(+pt.stock||0)+n;(S.stockLog=S.stockLog||[]).push({id:rid(),t,pid:pt.id,d:n,ref:po.no+' teslim',by:CUR.name})}});po.status='alindi';po.recvAt=t;po.recvTotal=tot;po.recvBy=CUR.name+' (asistan)';res='parçalar stoğa eklendi'}
+  else if(p.kind==='suppay'){(S.supPays=S.supPays||[]).push({id:rid(),sup:a.sup,amt:a.amt,date:today(),m:a.m,by:CUR.name+' (asistan)'})}
+  else if(p.kind==='espay'){let n=a.amt;const L=esnafSales(a.eid).slice().reverse();for(const s of L){if(n<=0)break;const r=restOf(s);if(!r)continue;const x=Math.min(r,n);(s.pays=s.pays||[]).push({id:rid(),amt:x,date:today(),method:a.m,by:CUR.name});logAct(s,fmt(x)+' ödeme aldı ('+a.m+')'+tag);n-=x}if(n>0)res='yapıldı · '+fmt(n)+' fazla ödeme'}
+  else if(p.kind==='custwa'){const s=S.sales.find(x=>x.id===a.sid);logAct(s,'WhatsApp mesajı hazırladı'+tag);p.wa={phone:s.customer.phone,text:a.text};res='mesaj hazır'}
+  else if(p.kind==='useradd'){const pin=String(Math.floor(100000+Math.random()*900000));const u={id:'u'+Date.now(),name:a.name,role:a.role,task:a.task,phone:a.phone,pin,pinSent:false,discount:false};S.users.push(u);
+    if(a.phone)p.wa={phone:a.phone,text:`Merhaba ${a.name}, Erenault uygulamasına giriş bilgilerin: adın "${a.name}", şifren ${pin}. Uygulama: https://github.com/erenaultmotors-crypto/Erenault/releases/latest`,label:'Şifreyi WhatsApp\'tan gönder'};res=a.name+' eklendi, şifre '+pin}
+  else if(p.kind==='pin'){const u=S.users.find(x=>x.id===a.uid);const pin=String(Math.floor(100000+Math.random()*900000));u.pin=pin;u.pinSent=false;if(u.phone)p.wa={phone:u.phone,text:`Merhaba ${u.name}, Erenault yeni şifren: ${pin}`,label:'Şifreyi WhatsApp\'tan gönder'};res='yeni şifre '+pin}
   else if(p.kind==='memdel'){S.aiMem=(S.aiMem||[]).filter(m=>m.id!==a.id)}
   else if(p.kind==='prep'){createTask({kind:'hazirlama',to:[a.to||S.settings.vekil].filter(Boolean),title:a.n+' adet '+engName(a.eid)+' hazırla',eid:a.eid,qty:a.n,due:a.due})}
   else if(p.kind==='task'){createTask({kind:a.kind,to:a.to,title:a.title,place:a.place||null,note:a.note||'',due:a.due})}
@@ -1224,12 +1309,17 @@ Onay bekleyen işlemler: ${aiPend().map(p=>p.id+': '+p.title).join(' | ')||'yok'
 HAFIZA (patronun sana öğrettikleri; cevap ve önerilerinde bunlara uy): ${(S.aiMem||[]).map(m=>'- '+m.text).join(' ')||'henüz not yok'}.
 Bekleyen hatırlatmalar: ${(S.reminders||[]).filter(r=>!r.done).map(r=>fdt(r.at)+': '+r.text).join(' | ')||'yok'}.
 - Patron "bunu not al / unutma / aklında tutsun" derse hafiza aracıyla kaydet ve "Not aldım" de. "Bana ... hatırlat" derse hatirlat aracını kullan.
-- Öncelik, plan, strateji, "ne önerirsin", "stok yeter mi", "işleri nasıl dağıtalım" gibi düşünmek gereken sorularda derin_dusun aracını çağır ve sonucunu kısa, net, konuşur gibi aktar.`}
+- Öncelik, plan, strateji, "ne önerirsin", "stok yeter mi", "işleri nasıl dağıtalım" gibi düşünmek gereken sorularda derin_dusun aracını çağır ve sonucunu kısa, net, konuşur gibi aktar.
+- Bilgi verdikten sonra ilgili bir sayfa varsa kısaca "İsterseniz ... sayfasını açayım" de. Patron "aç", "göster", "götür", "yönlendir" derse sayfa_ac aracını hemen çağır (onay gerekmez).
+- "Mesajlarım", "kim ne yazmış", "Ahmet ne demiş" denirse mesajlari_oku ile oku ve kısaca söyle; cevap istenirse mesaj_gonder ile hazırla.
+- Yetkilerin geniş: satış açma, teklif formu ve sözleşme gönderme, tahsilat, teslim, teklif onayı, sipariş onayı ve teslim alma, tedarikçiye ödeme, esnaf tahsilatı, müşteriye WhatsApp, çalışan ekleme ve şifre. Hepsi islem_hazirla ile hazırlanır ve tek kısa cümleyle onay sorulur. Silme ve fiyat değiştirme yapamazsın.
+- WhatsApp'a giden işlerde onaydan sonra "Tamam, hazır; WhatsApp düğmesine dokunup gönderebilirsiniz" de.
+- Patron konuşmayı bitirmek isterse ("bitir", "bugünlük yeter", "sağ ol", "görüşürüz", "kapat") kısaca veda et (örn. "Kolay gelsin, görüşmek üzere.") ve konusmayi_bitir aracını çağır.`}
 async function aiAsk(text){if(LIVE.ok&&MODE==='app'){liveText(String(text||'').trim());return}text=String(text||'').trim();if(!text||aiBusy)return;await aiSetup();
   if(!AI.sample){aiStatus='Yapay zeka bu görünümde kullanılamıyor (claude.ai içinde açın).';aiPaint();return}
   aiLastUser=text;aiTurnNo++;(S.aiChat=S.aiChat||[]).push({r:'u',x:text,t:new Date().toISOString()});aiTurns.push({role:'user',content:text});
   {const P0=(S.aiPending||[]).filter(p=>p.status==='bekliyor'&&p.turn<aiTurnNo),mt=Math.max(-1,...P0.map(p=>p.turn)),LP=P0.filter(p=>p.turn===mt),wc=aiNorm(text).split(' ').length;
-   if(LP.length&&wc<=6&&(aiIsYes(text)||aiIsNo(text))){let msg;try{if(aiIsYes(text)){LP.forEach(p=>aiRun(p));msg=LP.some(p=>p.kind==='po')?'Tamam, sipariş hazır. WhatsApp\'tan göndermeyi unutmayın.':'Tamam, yapıldı.'}else{LP.forEach(p=>{p.status='iptal';p.doneAt=new Date().toISOString()});msg='Tamam, iptal.'}}catch(e){msg='Yapamadım: '+e.message}
+   if(LP.length&&wc<=6&&(aiIsYes(text)||aiIsNo(text))){let msg;try{if(aiIsYes(text)){LP.forEach(p=>aiRun(p));msg=LP.some(p=>p.kind==='po'||p.wa)?'Tamam, hazır. WhatsApp düğmesine dokunup gönderebilirsiniz.':'Tamam, yapıldı.'}else{LP.forEach(p=>{p.status='iptal';p.doneAt=new Date().toISOString()});msg='Tamam, iptal.'}}catch(e){msg='Yapamadım: '+e.message}
      aiTurns.push({role:'assistant',content:msg});S.aiChat.push({r:'a',x:msg,t:new Date().toISOString()});save();aiPaint();if(aiVoice&&AI.tts)AI.tts.speak(msg,{language:'tr'}).catch(()=>{});return}}
   aiBusy=true;aiState='thinking';aiStatus='Düşünüyor…';const live={r:'a',x:'',t:new Date().toISOString(),live:true};S.aiChat.push(live);aiPaint();
   aiCtl=new AbortController();
@@ -1245,6 +1335,7 @@ async function aiAsk(text){if(LIVE.ok&&MODE==='app'){liveText(String(text||'').t
 function aiCard(p){const po=p.po&&(S.pos||[]).find(x=>x.id===p.po),sup=po&&(S.suppliers||[]).find(t=>t.id===po.sup);
   return `<div class="aicard ${p.status==='yapildi'?'done':p.status==='iptal'?'cancel':''}"><span class="k">${p.status==='bekliyor'?'Onay bekliyor':p.status==='yapildi'?'Yapıldı ✓':'İptal edildi'} · ${new Date(p.t).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</span><b>${esc(p.title)}</b>
   ${p.status==='bekliyor'?`<div class="row"><button class="btn pri" data-act="aiok" data-id="${p.id}">Onayla</button><button class="btn" data-act="ainok" data-id="${p.id}">Vazgeç</button></div>`:''}
+  ${p.wa&&p.status==='yapildi'?aiWaMsg(p):''}
   ${po&&p.status==='yapildi'?`<span class="pst ${po.sentAt?'ok':'late'}">${po.sentAt?'✓ WhatsApp mesajı gönderildi':'WhatsApp\'tan henüz gönderilmedi'}</span>`:''}${po&&sup&&sup.phone&&p.status==='yapildi'&&!po.sentAt?`<div class="row"><a class="btn sm wa" href="${waLink(sup.phone,poMsg(po))}" target="_blank" rel="noopener" data-posent="${po.id}">${WA_ICON}WhatsApp'tan gönder</a><button class="btn sm" data-act="popdf" data-id="${po.id}">PDF</button></div>`:''}</div>`}
 function pAsistan(){setTimeout(aiSetup,0);const pend=aiPend();
   let h=`<div class="section aiwrap"><div class="aihead"><span class="aiav ${aiState}">${AI_SVG}</span><div style="flex:1;min-width:0"><h2 style="margin:0">Asistan</h2><span class="small muted">Konuşun; bilgi verir, öneri yapar, onayınızla iş yapar.</span></div><label class="toggle small"><input type="checkbox" id="ai-voice" ${aiVoice?'checked':''}><span>Sesli cevap</span></label></div>
@@ -1261,7 +1352,7 @@ function pAsistan(){setTimeout(aiSetup,0);const pend=aiPend();
   if(aiSeg==='gecmis'){const L=(S.aiLog||[]).slice().reverse();h+=`<div class="section"><div class="ailog">${L.map(x=>`<div><time>${new Date(x.t).toLocaleString('tr-TR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</time>${esc(x.title)}<br><span class="small muted">${esc(x.result||'')}</span></div>`).join('')||'<div class="empty">Asistan henüz bir işlem yapmadı.</div>'}</div></div>`;return h}
   const C=(S.aiChat||[]).slice(-30);
   if(S.aiReport&&S.aiReport.text&&(()=>{const d=new Date(S.aiReport.t);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')===today()})())h+=`<div class="section"><div class="aicard done"><span class="k">☀️ Sabah raporu · ${new Date(S.aiReport.t).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</span><div style="white-space:pre-wrap">${esc(S.aiReport.text)}</div></div></div>`;
-  h+=`<div class="aithread" id="aithread">${C.length?'':`<div class="empty">Mikrofona dokunup konuşun. Örnekler: "Bugün kaç işimiz var?", "Ahmet'in üzerinde ne var?", "Stokta azalan ne var, Osman'a sipariş verelim", "Mehmet'e mesaj at, yanıma gelsin".</div>`}${C.map(m=>`<div class="aimsg ${m.r}"${m.live?' id="ailive"':''}>${esc(m.x||(m.live?'…':''))}</div>`).join('')}${aiPartial||aiBuf?`<div class="aimsg u partial">${esc((aiBuf+' '+aiPartial).trim())}</div>`:''}${pend.slice(-3).map(aiCard).join('')}</div>
+  h+=`<div class="aithread" id="aithread">${C.length?'':`<div class="empty">Mikrofona dokunup konuşun. Örnekler: "Bugün kaç işimiz var?", "Ahmet'in üzerinde ne var?", "Stokta azalan ne var, Osman'a sipariş verelim", "Mehmet'e mesaj at, yanıma gelsin".</div>`}${C.map(m=>`<div class="aimsg ${m.r}"${m.live?' id="ailive"':''}>${esc(m.x||(m.live?'…':''))}</div>`).join('')}${aiPartial||aiBuf?`<div class="aimsg u partial">${esc((aiBuf+' '+aiPartial).trim())}</div>`:''}${(S.aiPending||[]).filter(p=>p.status==='bekliyor'||(p.status==='yapildi'&&(p.wa||p.po)&&Date.now()-new Date(p.doneAt||0).getTime()<30*60000)).slice(-3).map(aiCard).join('')}</div>
   <div class="aibar"><button class="aimic${aiState==='listening'?' on':''}" data-act="aimic" aria-label="${aiState==='listening'?'Dinlemeyi bitir':'Konuşmak için dokunun'}">${aiBusy?'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>':MIC_BIG}</button>
   <div class="aistat" id="aistat">${esc(aiStatus||(aiBusy?'Düşünüyor…':LIVE.ws?'Dinliyorum… kapatmak için dokunun':AI.dict===null&&!LIVE.ok?'Bu görünümde mikrofon yok; aşağıya yazabilirsiniz.':'Konuşmak için dokunun'))}</div>
   <div class="aitype"><input type="text" id="ai-text" placeholder="veya yazın…" aria-label="Asistana yazın"><button class="btn" data-act="aisend">Gönder</button></div></div>`;
@@ -1802,7 +1893,7 @@ function contractFromHash(str){
   if(m[6]!=='0')for(let i=0;i+1<m[6].length;i+=2){const p=S.parts[PC.indexOf(m[6][i])],k=+m[6][i+1];if(!p||!p.opts[k])continue;if(p.req)q.sel[p.id]=k;else q.ext[p.id]=k}
   return{key:m[0],no:'EO-'+m[1],q,tot:parseInt(m[5],36),w:m[7],name:nameDec(m[8]||'')};
 }
-function contractLink(s){return BOOT.url+'?s='+s.token}
+function contractLink(s){return (window.EO_TEKLIF||BOOT.url)+'?s='+s.token}
 function contractLinkOld(s){
   const q=s.cfg||{},d={no:s.no,e:q.engineId,t:q.tier,n:s.customer.name,ph:s.customer.phone,tot:s.total,d:s.dates.geldi||today(),w:phoneWa(S.settings.wa)};
   const sd={},x={};req().forEach(p=>{const i=(q.sel||{})[p.id];if(i!=null&&i!==tierIdx(p,q.tier)&&p.opts[i])sd[p.id]=p.opts[i].b});
@@ -2315,7 +2406,7 @@ document.addEventListener('click',ev=>{
   if(a==='remadd'){const tx=(document.getElementById('rem-txt')||{}).value||'',at=(document.getElementById('rem-at')||{}).value||'';const d=new Date(at);if(!tx.trim()||isNaN(d)){toast('Ne ve ne zaman yazın');return}if(d<new Date()){toast('Geçmiş bir zaman seçtiniz');return}
     (S.reminders=S.reminders||[]).push({id:rid(),text:tx.trim().slice(0,300),at:d.toISOString(),done:false,t:new Date().toISOString()});save();toast('Hatırlatma kuruldu: '+fdt(d));return render()}
   if(a==='remdel'){S.reminders=(S.reminders||[]).filter(r=>r.id!==id);askKey=null;save();return render()}
-  if(a==='aiopen'){panelTab='asistan';aiSeg=aiPend().length&&!(S.aiChat||[]).length?'onay':'konus';location.hash='panel';render();window.scrollTo(0,document.body.scrollHeight);aiSetup();return}
+  if(a==='aiopen'){panelTab='asistan';aiSeg='konus';location.hash='panel';render();window.scrollTo(0,document.body.scrollHeight);aiSetup();if(typeof liveStart==='function'&&MODE==='app'){if(!LIVE.ws)liveStart()}else if(AI.dict&&aiState!=='listening'&&!aiBusy)aiMicClick();return}
   if(a==='aiseg'){aiSeg=t.dataset.k;return render()}
   if(a==='aimic'){aiMicClick();return}
   if(a==='aisend'){const el=document.getElementById('ai-text'),v=el&&el.value.trim();if(v){el.value='';aiAsk(v)}return}
