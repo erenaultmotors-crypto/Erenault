@@ -1042,7 +1042,7 @@ function apiAiThink(a, q, data, mem) {
   if (n > 40) throw new Error('BUSY');
   c.put('aithink', String(n + 1), 3600);
   var m1 = props().getProperty('GEMINI_DEEP_MODEL') || 'gemini-pro-latest';
-  return geminiTry([m1, 'gemini-flash-latest'], DANISMAN,
+  return geminiTry([m1, 'gemini-flash-latest', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'], DANISMAN,
     'Patronun notları: ' + clip((mem || []).join(' | '), 3000) + '\nBugün: ' + todayTR() + '\nSORU: ' + clip(q, 1000) + '\nVERİ (JSON): ' + clip(typeof data === 'string' ? data : JSON.stringify(data), 60000), 1500);
 }
 
@@ -1081,9 +1081,19 @@ function durumOzeti() {
 // Her sabah (zamanlayıcı ile) çalışır
 function sabahRaporu() {
   var d = durumOzeti();
-  var txt = geminiTry([props().getProperty('GEMINI_REPORT_MODEL') || 'gemini-flash-latest', 'gemini-pro-latest'],
+  var txt;
+  try { txt = geminiTry([props().getProperty('GEMINI_REPORT_MODEL') || 'gemini-flash-latest', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'],
     DANISMAN + ' Bu bir sabah raporu: "Günaydın" ile başla, bugünün tablosunu 2-3 cümlede özetle, sonra en önemli 2-3 somut öneriyi ver (kime ne yaptırılmalı, ne sipariş edilmeli, kim aranmalı).',
-    'VERİ (JSON): ' + JSON.stringify(d).slice(0, 50000), 900);
+    'VERİ (JSON): ' + JSON.stringify(d).slice(0, 50000), 900); }
+  catch (e) {
+    console.warn('Sabah raporu yazılamadı: ' + e);
+    var parts = ['Günaydın.', d.acik_is + ' açık iş var' + (d.geciken_is.length ? ', ' + d.geciken_is.length + ' tanesi gecikmiş' : '') + '.'];
+    if (d.azalan_parca.length) parts.push('Azalan parçalar: ' + d.azalan_parca.slice(0, 5).join(', ') + '.');
+    if (d.onay_bekleyen_siparis) parts.push(d.onay_bekleyen_siparis + ' sipariş onayınızı bekliyor.');
+    if (d.yeni_teklif) parts.push(d.yeni_teklif + ' yeni teklif var.');
+    parts.push('(Yapay zeka kotası dolduğu için kısa rapor.)');
+    txt = parts.join(' ');
+  }
   var meta = getMeta(); meta.report = { t: new Date().toISOString(), text: txt }; saveMeta(meta);
   pushTo('owner', '☀️ Günaydın · Erenault', txt.replace(/^Günaydın[.,!]?\s*/i, '').slice(0, 180), 'asistan');
   return txt;
@@ -1118,7 +1128,8 @@ function apiAiToken(a) {
   if (n > 60) throw new Error('BUSY');
   c.put('aitok', String(n + 1), 3600);
   var exp = new Date(Date.now() + 30 * 60000).toISOString(), start = new Date(Date.now() + 2 * 60000).toISOString();
-  var model = props().getProperty('GEMINI_MODEL') || 'gemini-3.8-live';
+  var paid = props().getProperty('GEMINI_PAID') === '1';
+  var model = props().getProperty('GEMINI_MODEL') || (paid ? 'gemini-3.8-live' : 'gemini-3.1-flash-live-preview');
   var res = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens', {
     method: 'post', contentType: 'application/json', muteHttpExceptions: true,
     headers: { 'x-goog-api-key': key },
@@ -1126,7 +1137,7 @@ function apiAiToken(a) {
   });
   if (res.getResponseCode() >= 300) throw new Error('AIERR ' + res.getResponseCode() + ' ' + res.getContentText().slice(0, 200));
   var j = JSON.parse(res.getContentText());
-  return { token: j.name, model: model, demo: props().getProperty('GEMINI_PAID') !== '1' };
+  return { token: j.name, model: model, demo: !paid };
 }
 
 /* ===================== Depolama ===================== */
