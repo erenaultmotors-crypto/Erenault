@@ -542,6 +542,15 @@ body.inchat .aifab,body.ulogin .aifab{display:none}
 .aimsg.u{align-self:flex-end;background:#fdf0d9;border:1px solid #ecc985;border-radius:16px 16px 4px 16px}
 .aimsg.a{align-self:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:16px 16px 16px 4px}
 .aimsg.partial{opacity:.65;font-style:italic}
+.todaybar{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:6px}
+.todaybar>div{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.todaybar span{font-size:12px;color:var(--muted)}.todaybar b{font-size:20px}.todaybar b.ok{color:var(--good)}.todaybar b.bad{color:var(--bad)}
+.expform{flex-basis:100%;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-top:6px}.expform label{flex:1 1 120px;min-width:0}
+.aimsg.ok,.aimsg.bad{align-self:stretch;font-weight:600;font-size:14px;border-radius:12px}
+.aimsg.ok{background:rgba(30,138,79,.12);color:var(--good);border:1px solid rgba(30,138,79,.35)}
+.aimsg.bad{background:rgba(196,63,56,.1);color:var(--bad);border:1px solid rgba(196,63,56,.35)}
+@keyframes aiflash{0%,100%{box-shadow:0 0 0 0 rgba(242,165,49,0)}20%,60%{box-shadow:0 0 0 5px rgba(242,165,49,.85)}}
+.aiflash{animation:aiflash 1.4s ease 2;border-radius:10px}
 .aicard{align-self:stretch;border:2px solid var(--accent-text);border-radius:14px;background:var(--panel);padding:12px 14px;display:flex;flex-direction:column;gap:8px}
 .aicard.done{border-color:var(--good);border-width:1px}
 .aicard.cancel{border-color:var(--line);border-width:1px;opacity:.75}
@@ -578,7 +587,7 @@ body.inchat .aifab,body.ulogin .aifab{display:none}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="../config.js"></script>
 <script type="text/plain" id="eo-main">
-window.__EO_VER='s3.7';window.addEventListener('error',function(e){try{var d=document.getElementById('eo-err')||document.body.appendChild(Object.assign(document.createElement('div'),{id:'eo-err'}));d.style.cssText='position:fixed;left:8px;right:8px;top:8px;z-index:99999;background:#fff3f3;color:#900;border:2px solid #c00;border-radius:12px;padding:12px;font:14px/1.4 system-ui;white-space:pre-wrap;word-break:break-word';d.textContent='Sayfa hatası ('+window.__EO_VER+'):\n'+(e.message||e.error||'?')+'\nsatır '+(e.lineno||'?')+':'+(e.colno||'?')+'\nBu yazının ekran görüntüsünü gönderin.'}catch(x){}});
+window.__EO_VER='s3.9';window.addEventListener('error',function(e){try{var d=document.getElementById('eo-err')||document.body.appendChild(Object.assign(document.createElement('div'),{id:'eo-err'}));d.style.cssText='position:fixed;left:8px;right:8px;top:8px;z-index:99999;background:#fff3f3;color:#900;border:2px solid #c00;border-radius:12px;padding:12px;font:14px/1.4 system-ui;white-space:pre-wrap;word-break:break-word';d.textContent='Sayfa hatası ('+window.__EO_VER+'):\n'+(e.message||e.error||'?')+'\nsatır '+(e.lineno||'?')+':'+(e.colno||'?')+'\nBu yazının ekran görüntüsünü gönderin.'}catch(x){}});
 (function(){
 const LOGO=document.querySelector('.logo').src;
 const TIERS={uygun:'Uygun',normal:'Normal',kaliteli:'Kaliteli'};
@@ -626,7 +635,7 @@ function defaults(){
       EN('e5','Kangoo · 1.5 dCi','K9K',55000,5500,'Kangoo, Clio, Megane için 1.5 dCi revizyonlu motor.',[['p1',1],['p2',1],['p3',1],['p4',1],['p5',1],['p7',1],['p8',1],['p9',1],['p11',1],['p12',8],['p14',4]]),
       EN('e6','Trafic 3 · 1.6 dCi','R9M',90000,7500,'Trafic 3 için 1.6 dCi revizyonlu motor. Zincir seti ve eksantrikler sıfır.',[['p1',1],['p2',1],['p3',1],['p4',1],['p5',1],['p6',1],['p7',2],['p8',1],['p9',1],['p10',1],['p11',1],['p12',16],['p14',4]])
     ],
-    pos:[],supPays:[],stockLog:[],esnaf:[],aiPending:[],aiLog:[],aiChat:[],tasks:[],aiMem:[],reminders:[],
+    pos:[],supPays:[],stockLog:[],esnaf:[],aiPending:[],aiLog:[],aiChat:[],tasks:[],aiMem:[],reminders:[],expenses:[],trash:[],
     sales:[], active:null
   };
 }
@@ -636,7 +645,7 @@ let S;
 /* ===== Google eşitleme ===== */
 if(!window.claude)window.claude={use:async n=>n==='downloads'?{save:async({filename,data})=>{const CP=window.Capacitor&&window.Capacitor.Plugins;if(CP&&CP.Filesystem&&CP.Share){const b64=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).split(',')[1]);fr.onerror=rej;fr.readAsDataURL(data)});const w=await CP.Filesystem.writeFile({path:filename,data:b64,directory:'CACHE'});await CP.Share.share({title:filename,url:w.uri,dialogTitle:'Kaydet veya gönder'});return}const u=URL.createObjectURL(data);const a=document.createElement('a');a.href=u;a.download=filename;a.target='_blank';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(u);a.remove()},8000)}}:null};
 let AUTHU=null,AUTHP='',INFO={},base={sales:{},msgs:{},pings:{},users:{},cat:null,pinned:null,c:{}},since=0,syncTimer=null,syncing=false,syncAgain=false,lastSync='ok',pulling=false,lastPull=0,PINPUSHED={},MEDIA={},MEDIAQ={};
-const J=JSON.stringify,COLL=['jobs','pays'],CL=['pos','supPays','stockLog','esnaf','units','prepOrders','unitLog','aiPending','aiLog','tasks','aiMem','reminders'];let STOCK={};
+const J=JSON.stringify,COLL=['jobs','pays'],CL=['pos','supPays','stockLog','esnaf','units','prepOrders','unitLog','aiPending','aiLog','tasks','aiMem','reminders','expenses','trash'];let STOCK={};
 function api(fn,...args){if(window.google&&google.script&&google.script.run)return new Promise((res,rej)=>{google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](...args)});
   return fetch(BOOT.api,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({fn,args}),redirect:'follow'}).then(r=>{if(!r.ok)throw new Error('NET '+r.status);return r.json()}).then(j=>{if(!j.ok)throw new Error(j.e);return j.r})}
 function AUTHO(){return{u:AUTHU,p:AUTHP}}
@@ -720,7 +729,7 @@ function applyPull(r,sent){
   if(r.report)S.aiReport=r.report;
   if(r.stock){STOCK=r.stock;(S.parts||[]).forEach(p=>{p.stock=+STOCK[p.id]||0})}
   if(r.colls||sent.c){const sc=sent.c||{};CL.forEach(n=>{S[n]=S[n]||[];const B=base.c[n]=base.c[n]||{},back=new Set();
-    ((r.colls||{})[n]||[]).forEach(srv=>{back.add(srv.id);const i=S[n].findIndex(x=>x.id===srv.id);const nl=mergeRec(i>=0?S[n][i]:null,B[srv.id],srv,(sc[n]||{})[srv.id]);if(i>=0)S[n][i]=nl;else S[n].push(nl);B[srv.id]=J(srv)});
+    ((r.colls||{})[n]||[]).forEach(srv=>{back.add(srv.id);const i=S[n].findIndex(x=>x.id===srv.id);if(i<0&&ROLE==='owner'&&B[srv.id]&&B[srv.id]===J(srv))return;const nl=mergeRec(i>=0?S[n][i]:null,B[srv.id],srv,(sc[n]||{})[srv.id]);if(i>=0)S[n][i]=nl;else S[n].push(nl);B[srv.id]=J(srv)});
     Object.keys(sc[n]||{}).forEach(id=>{if(back.has(id))return;const i=S[n].findIndex(x=>x.id===id);if(i<0||J(S[n][i])!==sc[n][id])return;if(B[id])S[n][i]=JSON.parse(B[id]);else S[n].splice(i,1)})})}
   if(r.gone)Object.entries(r.gone).forEach(([n,ids])=>{S[n]=(S[n]||[]).filter(x=>!ids.includes(x.id));ids.forEach(id=>{if(base.c[n])delete base.c[n][id]})});
   if(CUR){const me=S.users.find(u=>u.id===AUTHU);if(me){const old=ROLE;setUser(me);if(old!==ROLE)render()}else if(r.users){logoutHard('Hesabınız kaldırıldı.')}}
@@ -866,6 +875,62 @@ function seedUnits(){S.units=[];S.unitLog=[];S.prepOrders=[];if(!S.settings.veki
   if(S.engines.some(x=>x.id==='e3'))S.prepOrders.push({id:rid(),eid:'e3',qty:3,done:1,t:addDays(today(),-3)+'T09:00:00',by:'Patron',due:addDays(today(),2)});
   save()}
 function supName(id){const x=(S.suppliers||[]).find(t=>t.id===id);return x?x.name:'—'}
+const EXC={maas:'Maaş',avans:'Avans',prim:'Prim',kira:'Kira',elektrik:'Elektrik',su:'Su',dogalgaz:'Doğalgaz',yakit:'Yakıt',vergi:'Vergi',sgk:'SGK',internet:'Telefon / internet',malzeme:'Malzeme',diger:'Diğer'};
+const PAYM=['Nakit','Havale/EFT','Kart'];
+function exTpls(){return (S.expenses||[]).filter(x=>x.typ==='sabit')}
+function exPays(){return (S.expenses||[]).filter(x=>x.typ==='odeme')}
+function exTitle(x){if(x.uid)return (EXC[x.cat]||'Ödeme')+' · '+uname(x.uid)+(x.title?' ('+x.title+')':'');return x.title||EXC[x.cat]||'Gider'}
+function weekStart(){const d=new Date(),k=(d.getDay()+6)%7;d.setDate(d.getDate()-k);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function perOf(off){const n=new Date(),d=new Date(n.getFullYear(),n.getMonth()+(off||0),1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
+function dueOf(tp,per){const [y,m]=per.split('-').map(Number),L=new Date(y,m,0).getDate();return per+'-'+String(Math.min(Math.max(1,+tp.day||1),L)).padStart(2,'0')}
+function exPaid(tp,per){return exPays().filter(p=>p.tpl===tp.id&&p.per===per).reduce((a,p)=>a+(+p.amt||0),0)}
+function exDue(days){const t=today(),to=addDays(t,days==null?30:days),out=[];
+  exTpls().forEach(tp=>{for(let k=-3;k<=2;k++){const per=perOf(k),due=dueOf(tp,per);if(due>to||(tp.start&&due<tp.start))continue;const rest=(+tp.amt||0)-exPaid(tp,per);if(rest<=0)continue;out.push({tp,per,due,amt:+tp.amt||0,rest,late:due<t,title:exTitle(tp)+' · '+new Date(per+'-15').toLocaleDateString('tr-TR',{month:'long'})})}});
+  return out.sort((a,b)=>a.due.localeCompare(b.due))}
+function cashMoves(from,to){const M=[],inR=d=>d&&(!from||d>=from)&&(!to||d<=to);
+  S.sales.forEach(s=>(s.pays||[]).forEach(p=>{if(inR(p.date))M.push({d:p.date,io:1,amt:+p.amt||0,who:s.customer.name+(s.kind==='esnaf'?' (esnaf)':''),what:'Tahsilat · '+s.no,m:p.method||''})}));
+  (S.supPays||[]).forEach(p=>{if(inR(p.date))M.push({d:p.date,io:-1,amt:+p.amt||0,who:supName(p.sup),what:'Tedarikçi ödemesi',m:p.m||''})});
+  exPays().forEach(p=>{if(inR(p.date))M.push({d:p.date,io:-1,amt:+p.amt||0,who:p.uid?uname(p.uid):'',what:p.uid?(EXC[p.cat]||'Ödeme'):exTitle(p),m:p.m||''})});
+  return M.sort((a,b)=>b.d.localeCompare(a.d))}
+function exSave(id,typ,d){let x=id&&(S.expenses||[]).find(y=>y.id===id);
+  if(!x){x={id:'x'+rid().slice(0,8),typ,t:new Date().toISOString(),by:CUR?CUR.name:''};if(typ==='sabit')x.start=today();(S.expenses=S.expenses||[]).push(x)}
+  Object.assign(x,d);
+  if(typ==='odeme'&&(x.cat==='maas'||x.cat==='avans')&&x.uid&&!x.tpl){const tp=exTpls().find(y=>y.cat==='maas'&&y.uid===x.uid);if(tp){x.tpl=tp.id;x.per=String(x.date||today()).slice(0,7)}}
+  return x}
+function exPayTpl(tp,per,amt,m,date){return exSave(null,'odeme',{cat:tp.cat,uid:tp.uid||'',title:tp.title||'',amt,m,date,tpl:tp.id,per})}
+const TRASH_T={esnaf:'esnaf',calisan:'users',tedarikci:'suppliers',parca:'parts',motor:'engines',satis:'sales',is:'tasks',gider:'expenses',duzenli_odeme:'expenses'};
+const TRASH_L={esnaf:'Esnaf',calisan:'Çalışan',tedarikci:'Tedarikçi',parca:'Parça',motor:'Motor',satis:'Satış',is:'İş',gider:'Gider',duzenli_odeme:'Düzenli ödeme'};
+function trashPut(T,item,title){(S.trash=S.trash||[]).push({id:'tr'+rid().slice(0,8),t:new Date().toISOString(),T,title:title||'',by:CUR?CUR.name:'',data:JSON.stringify(item)});if(S.trash.length>200)S.trash=S.trash.slice(-200)}
+function trashRestore(id){const r=(S.trash||[]).find(x=>x.id===id);if(!r)throw new Error('Silinen kayıt bulunamadı');const k=TRASH_T[r.T],o=JSON.parse(r.data);S[k]=S[k]||[];if(!S[k].some(x=>x.id===o.id))S[k].push(o);S.trash=S.trash.filter(x=>x.id!==id);return (TRASH_L[r.T]||'')+' '+r.title}
+function exDel(id){const x=(S.expenses||[]).find(y=>y.id===id);if(!x)return;trashPut(x.typ==='sabit'?'duzenli_odeme':'gider',x,exTitle(x)+' '+fmt(x.amt));S.expenses=S.expenses.filter(y=>y.id!==id)}
+function trashHtml(){const L=(S.trash||[]).slice().reverse();return `<div class="section"><h3>Silinenler</h3><p class="small muted" style="margin:0">Silinen kayıtlar burada durur; "Geri al" ile eski yerine döner.</p><div class="ailog">${L.map(x=>`<div><time>${fdt(x.t)}</time>${esc((TRASH_L[x.T]||'')+' · '+x.title)}<div><button class="btn sm" data-act="trashundo" data-id="${x.id}">Geri al</button></div></div>`).join('')||'<div class="empty">Silinen kayıt yok.</div>'}</div></div>`}
+let exForm=null,exPayKey=null;
+function accToday(){const t=today(),M=cashMoves(t,t),gi=M.filter(x=>x.io>0).reduce((a,x)=>a+x.amt,0),ci=M.filter(x=>x.io<0).reduce((a,x)=>a+x.amt,0),D=exDue(0);
+  return `<div class="todaybar"><div><span>Bugün giren</span><b class="num ok">${fmt(gi)}</b></div><div><span>Bugün çıkan</span><b class="num">${fmt(ci)}</b></div><div><span>Bugün fark</span><b class="num">${fmt(gi-ci)}</b></div>${D.length?`<div><span>Bugün ödenecek / geciken</span><b class="num bad">${fmt(D.reduce((a,x)=>a+x.rest,0))}</b></div>`:''}</div>`}
+function exPayForm(x){return `<div class="expform"><label class="f"><span>Ödenen tutar</span><input type="number" inputmode="numeric" id="exp-amt" value="${x.rest}"></label><label class="f"><span>Nasıl?</span><select id="exp-m">${PAYM.map(m=>`<option>${m}</option>`).join('')}</select></label><label class="f"><span>Tarih</span><input type="date" id="exp-date" value="${today()}"></label><span class="row"><button class="btn sm pri" data-act="expaysave">Kaydet</button><button class="btn sm" data-act="expaycancel">Vazgeç</button></span></div>`}
+function exFormHtml(){const f=exForm,x=f.id?(S.expenses||[]).find(y=>y.id===f.id)||{}:{},sab=f.typ==='sabit',cats=Object.entries(EXC).filter(([k])=>sab?k!=='avans'&&k!=='prim':true);
+  return `<div class="card" style="display:flex;flex-direction:column;gap:10px"><b>${f.id?'Düzenle':sab?'Yeni maaş / düzenli ödeme':'Yeni gider'}</b><div class="form2">
+  <label class="f"><span>Tür</span><select id="ex-cat">${cats.map(([k,v])=>`<option value="${k}" ${(x.cat||(sab?'maas':'diger'))===k?'selected':''}>${v}</option>`).join('')}</select></label>
+  <label class="f"><span>Kişi (maaş, avans, prim için)</span><select id="ex-uid"><option value="">—</option>${S.users.filter(u=>u.role!=='patron').map(u=>`<option value="${u.id}" ${x.uid===u.id?'selected':''}>${esc(u.name)}</option>`).join('')}</select></label>
+  <label class="f"><span>Açıklama</span><input type="text" id="ex-title" value="${esc(x.title||'')}" placeholder="${sab?'Örn. Dükkan kirası':'Örn. Kompresör tamiri'}"></label>
+  <label class="f"><span>Tutar (₺)</span><input type="number" inputmode="numeric" id="ex-amt" value="${x.amt||''}"></label>
+  ${sab?`<label class="f"><span>Ayın kaçında ödenir?</span><input type="number" min="1" max="31" id="ex-day" value="${x.day||1}"></label>`:`<label class="f"><span>Tarih</span><input type="date" id="ex-date" value="${x.date||today()}"></label><label class="f"><span>Nasıl ödendi?</span><select id="ex-m">${PAYM.map(m=>`<option ${x.m===m?'selected':''}>${m}</option>`).join('')}</select></label>`}
+  </div><div class="row"><button class="btn pri" data-act="exsave">Kaydet</button><button class="btn" data-act="excancel">Vazgeç</button>${f.id?delBtn('ex'+f.id,'exdel',`data-id="${f.id}"`,'Sil'):''}</div></div>`}
+function accExtra(from,kar){const to=today(),P=exPays().filter(p=>!from||p.date>=from),gid=P.reduce((a,p)=>a+(+p.amt||0),0),sp=(S.supPays||[]).filter(p=>!from||p.date>=from).reduce((a,p)=>a+(+p.amt||0),0);
+  let h=`<div class="section"><h3>Giderler ve net kâr</h3><div class="kpis"><div class="kpi"><div class="l">İşletme giderleri</div><div class="v num">${fmt(gid)}</div><div class="s">Maaş, kira, fatura vb.</div></div><div class="kpi hl"><div class="l">Net kâr</div><div class="v num" style="${kar-gid<0?'color:var(--bad)':''}">${fmt(kar-gid)}</div><div class="s">Satış kârı − giderler</div></div><div class="kpi"><div class="l">Tedarikçilere ödenen</div><div class="v num">${fmt(sp)}</div><div class="s">Parça maliyeti kârdan zaten düşülü</div></div></div></div>`;
+  const D=exDue(30),SD=(S.suppliers||[]).map(t=>({t,d:supDebt(t.id)})).filter(x=>x.d>0),tot=D.reduce((a,x)=>a+x.rest,0)+SD.reduce((a,x)=>a+x.d,0),nl=D.filter(x=>x.late).length;
+  h+=`<div class="section"><h3>Önümüzdeki 30 gün ödenecekler</h3><div class="note">Gereken toplam para: <b class="num">${fmt(tot)}</b>${nl?` · <span style="color:var(--bad)">${nl} ödeme gecikti</span>`:''}</div><div class="plist">
+  ${D.map(x=>{const k=x.tp.id+'|'+x.per;return `<div class="pit${x.late?' late':''}" style="flex-wrap:wrap"><div><b>${esc(x.title)}</b><span class="num">${fdate(x.due)} · ${fmt(x.rest)}${x.rest<x.amt?' (kalan; toplam '+fmt(x.amt)+')':''}${x.late?' · gecikti':''}</span></div><div class="row"><button class="btn sm pri" data-act="expay" data-k="${k}">Ödendi</button></div>${exPayKey===k?exPayForm(x):''}</div>`}).join('')}
+  ${SD.map(x=>`<div class="pit"><div><b>${esc(x.t.name)} · tedarikçi borcu</b><span class="num">vadesiz · ${fmt(x.d)}</span></div><div class="row"><button class="btn sm" data-act="exsup">Tedarikçiler</button></div></div>`).join('')}
+  ${!D.length&&!SD.length?'<div class="empty">Önümüzdeki 30 günde ödenecek bir şey yok.</div>':''}</div></div>`;
+  const T=exTpls().slice().sort((a,b)=>((a.cat==='maas'?0:1)-(b.cat==='maas'?0:1))||((+a.day||0)-(+b.day||0))),per=to.slice(0,7);
+  h+=`<div class="section"><div class="row" style="justify-content:space-between"><h3>Maaşlar ve düzenli ödemeler</h3><button class="btn sm" data-act="exnew" data-k="sabit">+ Ekle</button></div>${exForm&&exForm.typ==='sabit'?exFormHtml():''}
+  ${T.length?`<div class="tbl"><table><tbody>${T.map(tp=>{const pd=exPaid(tp,per),du=dueOf(tp,per);return `<tr><td><b>${esc(exTitle(tp))}</b><div class="small muted">Ayın ${tp.day}. günü · <button class="linkbtn" data-act="exedit" data-id="${tp.id}">Düzenle</button></div></td><td class="r"><span class="num">${fmt(tp.amt)}</span><div>${pd>=tp.amt?'<span class="pst ok">Bu ay ödendi</span>':pd>0?'<span class="pst">'+fmt(pd)+' ödendi</span>':du<to?'<span class="pst late">Ödenmedi</span>':'<span class="small muted">'+fdate(du)+'</span>'}</div></td></tr>`}).join('')}</tbody><tfoot><tr><td>Aylık toplam</td><td class="r num">${fmt(T.reduce((a,x)=>a+(+x.amt||0),0))}</td></tr></tfoot></table></div>`:'<div class="empty">Henüz maaş veya düzenli ödeme yok. "+ Ekle" ile çalışanların maaşını ve kira gibi her ay ödenenleri girin.</div>'}</div>`;
+  h+=`<div class="section"><div class="row" style="justify-content:space-between"><h3>Giderler</h3><button class="btn sm pri" data-act="exnew" data-k="odeme">+ Gider ekle</button></div>${exForm&&exForm.typ==='odeme'?exFormHtml():''}
+  ${P.length?`<div class="tbl"><table><tbody>${P.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(p=>`<tr><td><b>${esc(exTitle(p))}</b>${p.per&&p.cat==='maas'?' <span class="small muted">('+new Date(p.per+'-15').toLocaleDateString('tr-TR',{month:'long'})+' maaşı)</span>':''}<div class="small muted">${fdate(p.date)} · ${esc(p.m||'')} · <button class="linkbtn" data-act="exedit" data-id="${p.id}">Düzenle</button></div></td><td class="r num">${fmt(p.amt)}</td></tr>`).join('')}</tbody><tfoot><tr><td>Toplam</td><td class="r num">${fmt(gid)}</td></tr></tfoot></table></div>`:'<div class="empty">Bu dönemde gider yok.</div>'}</div>`;
+  const M=cashMoves(from,to),gi=M.filter(x=>x.io>0).reduce((a,x)=>a+x.amt,0),ci=M.filter(x=>x.io<0).reduce((a,x)=>a+x.amt,0);
+  h+=`<div class="section"><h3>Kasa hareketleri</h3>${M.length?`<div class="tbl"><table><tbody>${M.slice(0,80).map(x=>`<tr><td><b>${esc(x.who||x.what)}</b><div class="small muted">${fdate(x.d)}${x.who&&x.what!==x.who?' · '+esc(x.what):''}${x.m?' · '+esc(x.m):''}</div></td><td class="r num" style="${x.io>0?'color:var(--good)':''}">${x.io>0?'+':'−'}${fmt(x.amt)}</td></tr>`).join('')}</tbody><tfoot><tr><td>Giren ${fmt(gi)} · Çıkan ${fmt(ci)}</td><td class="r num">${gi-ci<0?'−':'+'}${fmt(Math.abs(gi-ci))}</td></tr></tfoot></table></div>`:'<div class="empty">Bu dönemde para hareketi yok.</div>'}</div>`;
+  return h}
 function lowParts(){return (S.parts||[]).filter(p=>(+p.stock||0)<=(+p.min||0))}
 function stockOut(s){if(s.stockOut||!s.lines)return;const t=new Date().toISOString();
   s.lines.forEach(l=>{const p=part(l.id);if(!p)return;p.stock=(+p.stock||0)-(+l.qty||0);(S.stockLog=S.stockLog||[]).push({id:rid(),t,pid:p.id,d:-(+l.qty||0),ref:s.no,by:CUR?CUR.name:'Sistem'})});
@@ -1057,7 +1122,7 @@ async function liveMsg(m){
     if(sc.turnComplete){LIVE.turnOpen=false;liveFlush();liveTouch();save();liveMaybeEnd()}}
   if(m.toolCall){liveSet('thinking','Bakıyorum…');const T=aiTools(),out=[];
     for(const fc of (m.toolCall.functionCalls||[])){const t=T.find(x=>x.name===fc.name);let response;
-      if(fc.name==='onay_cevabi'&&!LIVE.turnOpen&&!aiLastUser)await new Promise(r=>setTimeout(r,1200));
+      if(fc.name==='onay_cevabi'||fc.name==='onayla'){const P=(S.aiPending||[]).find(x=>x.id===String((fc.args||{}).onay_id));if(P&&P.status==='bekliyor'){for(let k=0;k<35&&!(P.turn<aiTurnNo&&(aiIsYes(aiLastUser)||aiIsNo(aiLastUser)));k++)await new Promise(r=>setTimeout(r,100))}}
       try{const r=t?await t.execute(liveUnscrub(fc.args||{})):(()=>{throw new Error('Bilinmeyen araç')})();response={result:liveScrub(r)}}catch(e){response={error:String(e&&e.message||e)}}
       out.push({id:fc.id,name:fc.name,response})}
     if(LIVE.ws&&LIVE.ws.readyState===1)LIVE.ws.send(JSON.stringify({toolResponse:{functionResponses:out}}));liveTouch()}
@@ -1110,6 +1175,13 @@ const AI_TOOLS_READ=[
   execute:i=>{const e=aiFind(S.engines,i.motor,x=>x.name+' '+x.code);if(!e)throw new Error('Motor bulunamadı. Motorlar: '+S.engines.map(x=>x.name).join(', '));return{motor:e.name,kod:e.code,fiyat:+e.price||0,maliyet:engCost(e),kar:(+e.price||0)-engCost(e),aciklama:e.desc||'',parcalar:(e.recipe||[]).map(r=>({parca:(part(r.pid)||{}).name,adet:r.qty,stok:(part(r.pid)||{}).stock}))}}},
  {name:'tedarikciler',description:'Tedarikçileri, telefonlarını, verdikleri parçaları (stok durumuyla), borcu ve açık siparişleri döner.',
   execute:()=>(S.suppliers||[]).map(t=>({ad:t.name,telefon:t.phone?waShow(t.phone):'',borc:supDebt(t.id),parcalar:S.parts.filter(p=>p.sup===t.id).map(p=>({parca:p.name,adet:+p.stock||0,alt_sinir:+p.min||0})),acik_siparis:(S.pos||[]).filter(p=>p.sup===t.id&&p.status==='gonderildi').map(p=>p.no)}))},
+ {name:'kasa',description:'Kasa: dönemde (gun: bugun, hafta, ay) giren ve çıkan para, hareketler, işletme giderleri, net kâr, önümüzdeki 30 günde ödenecekler (maaşlar, düzenli ödemeler, tedarikçi borçları) ve maaş listesi.',
+  execute:i=>{const t=today(),from=i.gun==='hafta'?weekStart():i.gun==='ay'?t.slice(0,8)+'01':t,M=cashMoves(from,t),gi=M.filter(x=>x.io>0).reduce((a,x)=>a+x.amt,0),ci=M.filter(x=>x.io<0).reduce((a,x)=>a+x.amt,0);
+   const D=exDue(30),SD=(S.suppliers||[]).map(s=>({tedarikci:s.name,borc:supDebt(s.id)})).filter(x=>x.borc>0),ay=t.slice(0,8)+'01',L=soldIn(ay),kar=L.reduce((a,s)=>a+s.total-s.cost,0),gid=exPays().filter(p=>p.date>=ay).reduce((a,p)=>a+(+p.amt||0),0);
+   return{donem:i.gun||'bugun',baslangic:from,giren:gi,cikan:ci,fark:gi-ci,hareketler:M.slice(0,25).map(x=>({tarih:x.d,yon:x.io>0?'giris':'cikis',tutar:x.amt,kim:x.who,ne:x.what,yontem:x.m})),
+     odenecekler_30_gun:D.map(x=>({ne:x.title,son_tarih:x.due,kalan:x.rest,gecikti:x.late})),tedarikci_borclari:SD,odenecek_toplam:D.reduce((a,x)=>a+x.rest,0)+SD.reduce((a,x)=>a+x.borc,0),
+     maaslar:exTpls().filter(x=>x.cat==='maas').map(x=>({kisi:uname(x.uid),tutar:x.amt,gun:x.day,bu_ay_odenen:exPaid(x,t.slice(0,7))})),duzenli_odemeler:exTpls().filter(x=>x.cat!=='maas').map(x=>({ne:exTitle(x),tutar:x.amt,gun:x.day})),
+     bu_ay:{satis_kari:kar,isletme_giderleri:gid,net_kar:kar-gid},son_giderler:exPays().slice(-10).reverse().map(p=>({tarih:p.date,ne:exTitle(p),tutar:p.amt,yontem:p.m})),silinenler:(S.trash||[]).slice(-5).reverse().map(x=>(TRASH_L[x.T]||'')+' · '+x.title)}}},
  {name:'esnaflar',description:'Kayıtlı esnafları, açık hesap borçlarını ve son siparişlerini döner.',
   execute:()=>(S.esnaf||[]).map(e=>({esnaf:e.shop,yetkili:e.name,borc:esBal(e.id),siparis_sayisi:esnafSales(e.id).length,son_siparis:(esnafSales(e.id)[0]||{}).dates?.satildi||''}))},
  {name:'hazir_motorlar',description:'Dükkandaki hazır motor stoğu: motor başına dükkanda, boşta, ayrılmış (kime) ve motor bekleyen satışlar; stoğa hazırlama işlerinin ilerlemesi.',
@@ -1123,8 +1195,8 @@ function aiTools(){if(!Object.keys(AI_READ_MAP).length){AI_TOOLS_READ.forEach(t=
  {name:'veri_oku',description:'Uygulamanın güncel verisini okur. konu: '+AI_TOOLS_READ.map(t=>t.name).join(', ')+'. Ek alanlar: kisi (çalışan adı), durum (acik/biten/geciken/bugun/hepsi veya satış durumu geldi/satildi/teslim), gun (bugun/hafta/ay), parca, motor, sadece_azalan. Her soruda yeniden çağır.',
   inputSchema:{type:'object',properties:{konu:{type:'string',enum:AI_TOOLS_READ.map(t=>t.name)},kisi:{type:'string'},durum:{type:'string'},gun:{type:'string'},parca:{type:'string'},motor:{type:'string'},sadece_azalan:{type:'boolean'}},required:['konu']},
   execute:i=>{const t=AI_READ_MAP[String(i.konu)];if(!t)throw new Error('Bilinmeyen konu. Konular: '+Object.keys(AI_READ_MAP).join(', '));return t.execute(i||{})}},
- {name:'islem_hazirla',description:'Bir işlemi onaya hazırlar, YAPMAZ; onay_id döner, sonra patrona tek kısa cümleyle onay sor. tur ve alanları: is_ata (kisi, satis, is_turu, not, termin), is_aktar (is_id, yeni_kisi), mesaj_gonder (kime, metin), konum_gonder (kime, konum), durum_sor (kisi), tedarikci_siparisi (tedarikci, kalemler:[{parca,adet}]), esnaf_siparisi (esnaf, motor, adet, eski_motor), stok_girisi (parca, adet), hazirlama_isi (motor, adet, kisi, termin), bagimsiz_is (kisi, is, yer, termin), yeni_satis (musteri, telefon, motor, adet, eski_motor, plaka), teklif_formu_gonder (musteri, telefon), sozlesme_gonder (satis), tahsilat (satis, tutar, yontem), teslim_edildi (satis), teklif_onayla (satis), siparis_onayla (siparis, karar), siparis_teslim_al (siparis), tedarikciye_odeme (tedarikci, tutar, yontem), esnaf_tahsilat (esnaf, tutar, yontem), musteriye_mesaj (satis, metin), calisan_ekle (ad, gorev, telefon), sifre_yenile (kisi).',
-  inputSchema:{type:'object',properties:{musteri:{type:'string'},telefon:{type:'string'},plaka:{type:'string'},tutar:{type:'number'},yontem:{type:'string'},siparis:{type:'string'},karar:{type:'string'},ad:{type:'string'},gorev:{type:'string'},is:{type:'string'},yer:{type:'string'},tur:{type:'string',enum:['is_ata','is_aktar','mesaj_gonder','konum_gonder','durum_sor','tedarikci_siparisi','esnaf_siparisi','stok_girisi','hazirlama_isi','bagimsiz_is','yeni_satis','teklif_formu_gonder','sozlesme_gonder','tahsilat','teslim_edildi','teklif_onayla','siparis_onayla','siparis_teslim_al','tedarikciye_odeme','esnaf_tahsilat','musteriye_mesaj','calisan_ekle','sifre_yenile']},kisi:{type:'string'},satis:{type:'string'},is_turu:{type:'string'},not:{type:'string'},termin:{type:'string'},is_id:{type:'string'},yeni_kisi:{type:'string'},kime:{type:'string'},metin:{type:'string'},konum:{type:'string'},tedarikci:{type:'string'},kalemler:{type:'array',items:{type:'object',properties:{parca:{type:'string'},adet:{type:'number'}}}},esnaf:{type:'string'},motor:{type:'string'},adet:{type:'number'},eski_motor:{type:'string'},parca:{type:'string'}},required:['tur']},
+ {name:'islem_hazirla',description:'Bir işlemi onaya hazırlar, YAPMAZ; onay_id döner, sonra patrona tek kısa cümleyle onay sor. tur değerleri ve her birinin alanları sistem talimatındaki İŞLEM TÜRLERİ listesindedir.',
+  inputSchema:{type:'object',properties:{musteri:{type:'string'},telefon:{type:'string'},plaka:{type:'string'},tutar:{type:'number'},yontem:{type:'string'},siparis:{type:'string'},karar:{type:'string'},ad:{type:'string'},gorev:{type:'string'},is:{type:'string'},yer:{type:'string'},tablo:{type:'string'},islem:{type:'string',enum:['ekle','duzenle','sil']},hedef:{type:'string'},yetkili:{type:'string'},adres:{type:'string'},gun:{type:'number'},kategori:{type:'string'},aciklama:{type:'string'},fiyat:{type:'number'},maliyet:{type:'number'},min:{type:'number'},tarih:{type:'string'},tur:{type:'string',enum:['kayit','gider_ekle','avans_ver','maas_tanimla','odeme_yap','geri_al','is_ata','is_aktar','mesaj_gonder','konum_gonder','durum_sor','tedarikci_siparisi','esnaf_siparisi','stok_girisi','hazirlama_isi','bagimsiz_is','yeni_satis','teklif_formu_gonder','sozlesme_gonder','tahsilat','teslim_edildi','teklif_onayla','siparis_onayla','siparis_teslim_al','tedarikciye_odeme','esnaf_tahsilat','musteriye_mesaj','calisan_ekle','sifre_yenile']},kisi:{type:'string'},satis:{type:'string'},is_turu:{type:'string'},not:{type:'string'},termin:{type:'string'},is_id:{type:'string'},yeni_kisi:{type:'string'},kime:{type:'string'},metin:{type:'string'},konum:{type:'string'},tedarikci:{type:'string'},kalemler:{type:'array',items:{type:'object',properties:{parca:{type:'string'},adet:{type:'number'}}}},esnaf:{type:'string'},motor:{type:'string'},adet:{type:'number'},eski_motor:{type:'string'},parca:{type:'string'}},required:['tur']},
   execute:i=>{const t=AI_ACT_MAP[String(i.tur)];if(!t||i.tur==='onayla'||i.tur==='iptal')throw new Error('Bilinmeyen işlem türü');const a={...i};if(i.tur==='is_ata')a.tur=i.is_turu||'diger';return t.execute(a)}},
  {name:'onay_cevabi',description:'Patron bekleyen işleme cevap verdiğinde çağır. karar: evet (patron evet/tamam/yap dedi) veya hayir (hayır/dur/vazgeç dedi). Patron cevap vermeden ASLA evet ile çağırma.',
   inputSchema:{type:'object',properties:{onay_id:{type:'string'},karar:{type:'string',enum:['evet','hayir']}},required:['onay_id','karar']},
@@ -1139,8 +1211,8 @@ function aiTools(){if(!Object.keys(AI_READ_MAP).length){AI_TOOLS_READ.forEach(t=
   inputSchema:{type:'object',properties:{metin:{type:'string'},zaman:{type:'string'}},required:['metin','zaman']},
   execute:i=>{const d=new Date(String(i.zaman));if(isNaN(d))throw new Error('Zaman anlaşılamadı; tarih ve saati sor');if(d.getTime()<Date.now()-60000)throw new Error('Bu zaman geçmişte');
     const r={id:rid(),text:String(i.metin).slice(0,300),at:d.toISOString(),done:false,t:new Date().toISOString()};(S.reminders=S.reminders||[]).push(r);(S.aiLog=S.aiLog||[]).push({t:r.t,title:'Hatırlatma kuruldu: '+r.text,result:fdt(r.at),kind:'rem'});save();aiPaint();return 'kuruldu: '+fdt(r.at)}},
- {name:'sayfa_ac',description:'Uygulamada bir sayfayı açar (onaysız). sayfa: satislar, isler, stok, hazir_motorlar, siparisler, tedarikciler, kasa (gelir-gider/muhasebe), musteriler, esnaf, fiyatlar (motorlar ve fiyatlar), bildirimler, mesajlar, asistan. kisi: işlerde veya mesajlarda o kişi; satis: o satışın kartı.',
-  inputSchema:{type:'object',properties:{sayfa:{type:'string',enum:['satislar','isler','stok','hazir_motorlar','siparisler','tedarikciler','kasa','musteriler','esnaf','fiyatlar','bildirimler','mesajlar','asistan']},kisi:{type:'string'},satis:{type:'string'}},required:['sayfa']},
+ {name:'sayfa_ac',description:'Uygulamada bir sayfayı açar, istenen kaydı bulup gösterir veya sayfayı kaydırır (onaysız). sayfa: satislar, isler, stok, hazir_motorlar, siparisler, tedarikciler, kasa (gelir-gider), giderler, odenecekler, maaslar, hareketler (kasa hareketleri), calisanlar, musteriler, esnaf, fiyatlar (motorlar ve fiyatlar), bildirimler, mesajlar, asistan. hedef: gösterilecek kaydın adı (müşteri, esnaf, tedarikçi, parça, gider, motor); sayfa verilmezse hedefe göre doğru sayfa bulunur. kaydir: asagi, yukari, en_ust, en_alt. kisi: işlerde veya mesajlarda o kişi; satis: o satışın kartı.',
+  inputSchema:{type:'object',properties:{sayfa:{type:'string',enum:['satislar','isler','stok','hazir_motorlar','siparisler','tedarikciler','kasa','giderler','odenecekler','maaslar','hareketler','calisanlar','musteriler','esnaf','fiyatlar','bildirimler','mesajlar','asistan']},hedef:{type:'string'},kaydir:{type:'string',enum:['asagi','yukari','en_ust','en_alt']},kisi:{type:'string'},satis:{type:'string'}}},
   execute:i=>aiGo(i)},
  {name:'mesajlari_oku',description:'Patrona gelen okunmamış (veya bir kişiden gelen son) mesajları getirir ve okundu yapar. kisi verilirse sadece o kişinin.',
   inputSchema:{type:'object',properties:{kisi:{type:'string'}}},
@@ -1157,21 +1229,83 @@ function aiAutoGet(){try{return localStorage.getItem('eo-autolisten')==='1'}catc
 function aiAutoOpen(listen){if(ROLE!=='owner')return;panelTab='asistan';aiSeg='konus';if(location.hash!=='#panel')location.hash='panel';render();if(listen&&typeof liveStart==='function'&&!LIVE.ws)setTimeout(liveStart,500)}
 function aiSnapshot(){const o={};['gunluk_ozet','calisanlar','stok','odemeler','hazir_motorlar'].forEach(k=>{try{o[k]=AI_TOOLS_READ.find(t=>t.name===k).execute({})}catch(e){}});try{o.acik_isler=AI_TOOLS_READ.find(t=>t.name==='isler').execute({durum:'acik'})}catch(e){}return JSON.stringify(o).slice(0,60000)}
 let aiEnding=false;
-function aiGo(i){const pg=i.sayfa;let what={satislar:'Satışlar',isler:'İşler',stok:'Stok',hazir_motorlar:'Hazır motorlar',siparisler:'Siparişler',tedarikciler:'Tedarikçiler',kasa:'Kasa',musteriler:'Müşteriler',esnaf:'Esnaflar',fiyatlar:'Motorlar ve fiyatlar',bildirimler:'Bildirimler',asistan:'Asistan'}[pg]||pg;
+function aiFocus(q){const n=aiNorm(q);if(!n)return false;const sel='#app .sale,#app .card,#app .ocard,#app .pocard,#app .mcard,#app .jrow,#app .nitem,#app .pingcard,#app .rrow,#app .plrow,#app .payrow,#app .crow,#app .pit,#app tr,#app .pay,#app .kpi,#app h2,#app h3,#app .aicard,#app .ailog>div';const vis=el=>el.getClientRects().length>0;
+  let C=[...document.querySelectorAll(sel)].filter(el=>vis(el)&&aiNorm(el.textContent).includes(n));
+  if(!C.length){const W=n.split(' ').filter(w=>w.length>2);if(W.length)C=[...document.querySelectorAll(sel)].filter(el=>{const x=aiNorm(el.textContent);return vis(el)&&W.every(w=>x.includes(w))})}
+  if(!C.length)return false;C.sort((a,b)=>a.textContent.length-b.textContent.length);const el=C[0];el.scrollIntoView({block:'center',behavior:'smooth'});el.classList.remove('aiflash');void el.offsetWidth;el.classList.add('aiflash');setTimeout(()=>el.classList.remove('aiflash'),3200);return true}
+function aiScroll(k){const H=window.innerHeight;if(k==='en_ust')window.scrollTo({top:0,behavior:'smooth'});else if(k==='en_alt')window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});else window.scrollBy({top:(k==='yukari'?-1:1)*Math.round(H*.7),behavior:'smooth'})}
+function aiGo(i){let pg=i.sayfa||'';const hd=String(i.hedef||'').trim();let focus=hd;
+  if(!pg&&!hd&&!i.satis&&!i.kisi){if(i.kaydir){aiScroll(i.kaydir);return 'Sayfa kaydırıldı'}throw new Error('sayfa, hedef veya kaydir gerekli')}
+  if(hd&&!pg){let s=null;try{s=aiSale(hd)}catch(e){}const nh=aiNorm(hd),ex=(L,k)=>L.some(x=>{const v=aiNorm(k(x));return v===nh||v.split(' ').slice(0,2).join(' ')===nh});
+    if(ex(S.sales.filter(x=>x.status!=='gonderildi'),x=>x.customer.name)||/^(eo-?)?\d+$/i.test(hd.replace(/\s/g,''))){pg='satislar';i.satis=hd;focus=''}
+    else if(ex(S.esnaf||[],x=>x.shop)||ex(S.esnaf||[],x=>x.name||''))pg='esnaf';
+    else if(ex(S.suppliers||[],x=>x.name))pg='tedarikciler';
+    else if(ex(S.parts,x=>x.name))pg='stok';
+    else if(aiFind(S.esnaf||[],hd,x=>x.shop+' '+(x.name||'')))pg='esnaf';
+    else if(S.users.some(u=>aiNorm(u.name)===aiNorm(hd)||aiNorm(u.name).split(' ')[0]===aiNorm(hd))){pg='isler';i.kisi=hd;focus=''}
+    else if(s){pg='satislar';i.satis=hd;focus=''}
+    else if(aiFind(S.suppliers||[],hd))pg='tedarikciler';
+    else if(aiFind(S.parts,hd))pg='stok';
+    else if(aiFind(exTpls().concat(exPays()),hd,x=>exTitle(x)+' '+(x.title||'')+' '+(EXC[x.cat]||'')))pg='giderler';
+    else if(aiFind(S.engines,hd,x=>x.name+' '+x.code))pg='fiyatlar';
+    else throw new Error('"'+hd+'" uygulamada bulunamadı')}
+  const sub={giderler:'Giderler',odenecekler:'Önümüzdeki 30 gün ödenecekler',maaslar:'Maaşlar ve düzenli ödemeler',hareketler:'Kasa hareketleri',calisanlar:''}[pg];
+  if(sub!==undefined){if(!focus)focus=sub;if(pg==='calisanlar'){pg='isler';i.calisanlar=true}else pg='kasa'}
+  let what={satislar:'Satışlar',isler:'İşler',stok:'Stok',hazir_motorlar:'Hazır motorlar',siparisler:'Siparişler',tedarikciler:'Tedarikçiler',kasa:'Kasa',musteriler:'Müşteriler',esnaf:'Esnaflar',fiyatlar:'Motorlar ve fiyatlar',bildirimler:'Bildirimler',asistan:'Asistan'}[pg]||pg;
   if(pg==='mesajlar'){msgConv=null;if(i.kisi){const u=aiNorm(i.kisi)==='ekip'?{id:'ekip'}:aiUser(i.kisi);msgConv=u.id}location.hash='mesaj';setTimeout(render,0);return 'Mesajlar açıldı'}
   const map={satislar:'satislar',isler:'isler',stok:'stok',hazir_motorlar:'stok',siparisler:'stok',tedarikciler:'stok',kasa:'muhasebe',musteriler:'musteriler',esnaf:'esnaf',fiyatlar:'fiyatlar',bildirimler:'bildirim',asistan:'asistan'};
   panelTab=map[pg]||'satislar';
   if(pg==='hazir_motorlar')stokSeg='motor';else if(pg==='siparisler')stokSeg='siparis';else if(pg==='tedarikciler')stokSeg='tedarik';else if(pg==='stok')stokSeg='stok';
-  if(pg==='isler'){workSeg='takip';workUser=null;if(i.kisi){const u=aiUser(i.kisi);workUser=u.id;what='İşler: '+u.name}}
-  if(i.satis){const s=aiSale(i.satis);panelTab='satislar';pipeFilter=null;openSale=s.id;markSeen(s);what=s.customer.name+' satışı'}
-  if(location.hash!=='#panel')location.hash='panel';setTimeout(()=>{render();window.scrollTo(0,0);if(openSale&&i.satis)setTimeout(()=>{const el=document.querySelector(`[data-act="toggle"][data-id="${openSale}"]`);el&&el.closest('.sale')&&el.closest('.sale').scrollIntoView({block:'center'})},50)},0);
-  return what+' sayfası açıldı'}
+  if(pg==='isler'){workSeg=i.calisanlar?'kisiler':'takip';workUser=null;if(i.kisi&&!i.calisanlar){const u=aiUser(i.kisi);workUser=u.id;what='İşler: '+u.name}}
+  if(pg==='kasa'&&focus&&focus!=='Önümüzdeki 30 gün ödenecekler'&&focus!=='Maaşlar ve düzenli ödemeler'&&period!=='tumu'&&period!=='buyil')period='buyil';
+  if(i.satis){const s=aiSale(i.satis);panelTab='satislar';pipeFilter=null;openSale=s.id;markSeen(s);what=s.customer.name+' satışı';focus=''}
+  if(location.hash!=='#panel')location.hash='panel';
+  setTimeout(()=>{render();window.scrollTo(0,0);setTimeout(()=>{if(openSale&&i.satis){const el=document.querySelector(`[data-act="toggle"][data-id="${openSale}"]`),c=el&&el.closest('.sale');if(c){c.scrollIntoView({block:'center'});c.classList.add('aiflash');setTimeout(()=>c.classList.remove('aiflash'),3200)}}else if(focus)aiFocus(focus);if(i.kaydir)aiScroll(i.kaydir)},90)},0);
+  return what+' sayfası açıldı'+(focus?'; '+focus+' gösteriliyor':'')}
+function aiDate(s){const n=aiNorm(s);if(!n)return '';if(/^\d{4}-\d{2}-\d{2}$/.test(String(s).trim()))return String(s).trim();if(n.includes('bugun')||n.includes('bugün'))return today();if(n.includes('yarin')||n.includes('yarın'))return addDays(today(),1);if(n.includes('dun')||n.includes('dün'))return addDays(today(),-1);
+  const m=String(s).match(/(\d{1,2})[./ ](\d{1,2})(?:[./ ](\d{2,4}))?/);if(m){const y=m[3]?(m[3].length===2?'20'+m[3]:m[3]):String(new Date().getFullYear());return y+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0')}return ''}
+function aiPayM(s){const n=aiNorm(s);return n.includes('havale')||n.includes('eft')||n.includes('banka')?'Havale/EFT':n.includes('kart')||n.includes('pos')?'Kart':'Nakit'}
+function aiCat(s){const n=aiNorm(s);if(!n)return 'diger';const e=Object.entries(EXC).find(([k,v])=>n===k||n===aiNorm(v)||n.includes(aiNorm(v))||aiNorm(v).includes(n)||n.includes(k));return e?e[0]:'diger'}
+function aiPatchTxt(p){const L=[],K={shop:'ad',name:'ad',phone:'telefon',addr:'adres',note:'not',due:'termin',title:'açıklama',task:'görev',role:'rol'};Object.entries(p).forEach(([k,v])=>{if(k==='customer'){Object.entries(v).forEach(([a,b])=>L.push({name:'müşteri adı',phone:'telefon',plate:'plaka'}[a]+' '+b))}else if(k==='price')L.push('fiyat '+fmt(v));else if(k==='cost')L.push('maliyet '+fmt(v));else if(k==='amt')L.push('tutar '+fmt(v));else if(k==='min')L.push('en az stok '+v);else if(k==='sup')L.push('tedarikçi '+supName(v));else if(k==='day')L.push('ayın '+v+'. günü');else if(k==='date')L.push('tarih '+fdate(v));else if(k==='role')L.push('rol '+(ROLES[v]||v));else if(k==='task'){if(v)L.push('görev '+(TASKS[v]||v))}else L.push((K[k]||k)+' '+v)});return L.join(', ')}
+function aiRec(i){const T0=aiNorm(i.tablo).replace(/ /g,'_'),O=aiNorm(i.islem),h=String(i.hedef||'').trim();
+  const TT={esnaf:'esnaf',calisan:'calisan','çalışan':'calisan',personel:'calisan',isci:'calisan','işçi':'calisan',kisi:'calisan','kişi':'calisan',tedarikci:'tedarikci','tedarikçi':'tedarikci',parca:'parca','parça':'parca',motor:'motor',fiyat:'motor',satis:'satis','satış':'satis',musteri:'satis','müşteri':'satis',siparis:'satis','sipariş':'satis',is:'is','iş':'is',gorev:'is','görev':'is',gider:'gider',odeme:'gider','ödeme':'gider',duzenli_odeme:'duzenli_odeme','düzenli_ödeme':'duzenli_odeme',maas:'duzenli_odeme','maaş':'duzenli_odeme'}[T0];
+  if(!TT)throw new Error('tablo şunlardan biri olmalı: esnaf, calisan, tedarikci, parca, motor, satis, is, gider, duzenli_odeme');
+  const op=O.startsWith('ekle')||O.startsWith('yeni')?'ekle':O.startsWith('sil')||O.startsWith('kald')||O.startsWith('iptal')?'sil':O?'duzenle':'';if(!op)throw new Error('islem: ekle, duzenle veya sil');
+  const nm=s=>String(s||'').trim().slice(0,80),ph=s=>String(s||'').replace(/[^\d+]/g,''),has=v=>v!==undefined&&v!==null&&v!=='';let obj=null,title='';const patch={};
+  if(TT==='esnaf'){if(op!=='ekle'){obj=aiFind(S.esnaf||[],h||i.ad||i.esnaf,x=>x.shop+' '+(x.name||''));if(!obj)throw new Error('Esnaf bulunamadı. Kayıtlı esnaflar: '+((S.esnaf||[]).map(x=>x.shop).join(', ')||'yok'))}
+    if(op!=='sil'){const ad=i.ad||(op==='ekle'?(h||i.esnaf):'');if(ad&&!(obj&&aiNorm(ad)===aiNorm(obj.shop)))patch.shop=nm(ad);if(i.yetkili)patch.name=nm(i.yetkili);if(i.telefon)patch.phone=ph(i.telefon);if(i.adres)patch.addr=String(i.adres).slice(0,200)}
+    if(op==='ekle'){if(!patch.shop)throw new Error('Esnafın adı gerekli');if(ph(patch.phone).replace(/\D/g,'').length<10)throw new Error('Esnafın telefonu gerekli')}title=obj?obj.shop:patch.shop}
+  else if(TT==='calisan'){if(op==='ekle')return AI_ACT_MAP.calisan_ekle.execute({ad:i.ad||h,gorev:i.gorev,telefon:i.telefon});obj=aiUser(h||i.kisi||i.ad);if(obj.role==='patron'&&op==='sil')throw new Error('Patron silinemez');
+    if(op==='duzenle'){if(i.ad&&aiNorm(i.ad)!==aiNorm(obj.name))patch.name=nm(i.ad);if(i.telefon)patch.phone=ph(i.telefon);if(i.gorev){const g=aiNorm(i.gorev);if(g.includes('dukkan')||g.includes('dükkan')){patch.role='dukkan';patch.task=''}else{patch.role='calisan';patch.task=g.includes('teslim')?'teslimat':g.includes('haz')?'hazirlama':'genel'}}if(has(i.tutar))return AI_ACT_MAP.maas_tanimla.execute({kisi:obj.name,tutar:i.tutar,gun:i.gun})}title=obj.name}
+  else if(TT==='tedarikci'){if(op!=='ekle'){obj=aiFind(S.suppliers||[],h||i.ad||i.tedarikci);if(!obj)throw new Error('Tedarikçi bulunamadı: '+(S.suppliers||[]).map(x=>x.name).join(', '))}
+    if(op!=='sil'){const ad=i.ad||(op==='ekle'?(h||i.tedarikci):'');if(ad&&!(obj&&aiNorm(ad)===aiNorm(obj.name)))patch.name=nm(ad);if(i.telefon)patch.phone=ph(i.telefon);if(i.adres)patch.addr=String(i.adres).slice(0,200)}if(op==='ekle'&&!patch.name)throw new Error('Tedarikçi adı gerekli');title=obj?obj.name:patch.name}
+  else if(TT==='parca'){if(op!=='ekle'){obj=aiFind(S.parts,h||i.ad||i.parca);if(!obj)throw new Error('Parça bulunamadı')}
+    if(op!=='sil'){const ad=i.ad||(op==='ekle'?(h||i.parca):'');if(ad&&!(obj&&aiNorm(ad)===aiNorm(obj.name)))patch.name=nm(ad);if(has(i.maliyet))patch.cost=Math.round(+i.maliyet||0);if(has(i.min))patch.min=Math.max(0,Math.round(+i.min||0));if(i.tedarikci){const s=aiFind(S.suppliers||[],i.tedarikci);if(!s)throw new Error('Tedarikçi bulunamadı');patch.sup=s.id}}
+    if(op==='ekle'&&!patch.name)throw new Error('Parça adı gerekli');title=obj?obj.name:patch.name}
+  else if(TT==='motor'){if(op==='ekle')throw new Error('Yeni motor parça listesi ister; Motorlar ve fiyatlar sayfasından ekleyin');obj=aiFind(S.engines,h||i.motor||i.ad,x=>x.name+' '+x.code);if(!obj)throw new Error('Motor bulunamadı: '+S.engines.map(x=>x.name).join(', '));
+    if(op==='duzenle'){if(has(i.fiyat)||has(i.tutar))patch.price=Math.round(+(has(i.fiyat)?i.fiyat:i.tutar)||0);if(i.ad&&aiNorm(i.ad)!==aiNorm(obj.name))patch.name=nm(i.ad)}title=obj.name+(op==='duzenle'&&patch.price?' (şimdiki fiyat '+fmt(obj.price)+')':'')}
+  else if(TT==='satis'){if(op==='ekle')return AI_ACT_MAP.yeni_satis.execute(i);obj=aiSale(h||i.satis||i.musteri);
+    if(op==='duzenle'){const c={},v=i.ad||(i.musteri&&aiNorm(i.musteri)!==aiNorm(h)?i.musteri:'');if(v&&aiNorm(v)!==aiNorm(obj.customer.name))c.name=nm(v);if(i.telefon)c.phone=ph(i.telefon);if(i.plaka)c.plate=nm(i.plaka).toUpperCase();if(Object.keys(c).length)patch.customer=c;if(i.not)patch.note=String(i.not).slice(0,300)}title=obj.customer.name+' ('+obj.no+')'}
+  else if(TT==='is'){if(op==='ekle')throw new Error('Yeni iş için bagimsiz_is veya is_ata türünü kullan');obj=aiFind(S.tasks||[],h||i.is,x=>(x.title||'')+' '+(x.to||[]).map(uname).join(' '));if(!obj)throw new Error('İş bulunamadı');if(op==='duzenle'){if(i.termin)patch.due=aiDate(i.termin)||nm(i.termin);if(i.not)patch.note=String(i.not).slice(0,300)}title=obj.title}
+  else if(TT==='gider'){if(op==='ekle')return AI_ACT_MAP.gider_ekle.execute(i);obj=aiFind(exPays().slice().reverse(),h||i.aciklama||i.kategori,x=>exTitle(x)+' '+(x.title||'')+' '+(EXC[x.cat]||''));if(!obj)throw new Error('Gider bulunamadı');
+    if(op==='duzenle'){if(has(i.tutar))patch.amt=Math.round(+i.tutar||0);if(i.tarih)patch.date=aiDate(i.tarih)||obj.date;if(i.aciklama)patch.title=nm(i.aciklama);if(i.yontem)patch.m=aiPayM(i.yontem)}title=exTitle(obj)+' '+fmt(obj.amt)+' ('+fdate(obj.date)+')'}
+  else if(TT==='duzenli_odeme'){if(op==='ekle'){const cat=aiCat(i.kategori||h);if(cat==='maas')return AI_ACT_MAP.maas_tanimla.execute(i);const n=Math.round(+i.tutar||0);if(!(n>0))throw new Error('Tutar gerekli');const day=Math.min(31,Math.max(1,Math.round(+i.gun||1)));
+      return aiQueue('exsabit',`Düzenli ödeme: ${i.aciklama||EXC[cat]} · ${fmt(n)} · ayın ${day}. günü`,{id:null,d:{cat,uid:'',title:nm(i.aciklama||''),amt:n,day}})}
+    obj=aiFind(exTpls(),h||i.kisi||i.aciklama,x=>exTitle(x)+' '+(x.title||'')+' '+(EXC[x.cat]||''));if(!obj)throw new Error('Düzenli ödeme bulunamadı: '+(exTpls().map(exTitle).join(', ')||'yok'));
+    if(op==='duzenle'){if(has(i.tutar))patch.amt=Math.round(+i.tutar||0);if(has(i.gun))patch.day=Math.min(31,Math.max(1,Math.round(+i.gun||1)));if(i.aciklama)patch.title=nm(i.aciklama)}title=exTitle(obj)}
+  if(op==='duzenle'&&!Object.keys(patch).length)throw new Error('Neyi değiştireceğimi söylemedin (ad, telefon, adres, tutar, fiyat, gün, maliyet…)');
+  const desc=op==='sil'?`SİL: ${TRASH_L[TT]} · ${title}`:op==='ekle'?`Yeni ${TRASH_L[TT].toLowerCase()}: ${title}${aiPatchTxt(Object.fromEntries(Object.entries(patch).filter(([k])=>k!=='shop'&&k!=='name')))?' · '+aiPatchTxt(Object.fromEntries(Object.entries(patch).filter(([k])=>k!=='shop'&&k!=='name'))):''}`:`${TRASH_L[TT]} · ${title}: ${aiPatchTxt(patch)}`;
+  return aiQueue('rec',desc,{T:TT,op,id:obj?obj.id:null,patch},op==='sil')}
 function aiPO(q,st){const n=String(q||'').toUpperCase().replace(/\s/g,'');const L=(S.pos||[]).filter(p=>!st||p.status===st);let po=L.find(p=>p.no===n||p.no.replace('SP-','')===n.replace('SP-',''));
   if(!po){const t=aiFind(S.suppliers||[],q);if(t){const M=L.filter(p=>p.sup===t.id);if(M.length===1)po=M[0];else if(M.length>1)throw new Error(t.name+' için birden fazla sipariş var: '+M.map(p=>p.no).join(', ')+'; hangisi?')}}
   if(!po)throw new Error('Sipariş bulunamadı'+(L.length?'. Uygun siparişler: '+L.map(p=>p.no+' '+supName(p.sup)).join(', '):''));return po}
 function aiWaMsg(p){if(!p.wa)return '';return `<div class="row"><a class="btn sm wa" href="${waLink(p.wa.phone,p.wa.text)}" target="_blank" rel="noopener">${WA_ICON}${esc(p.wa.label||'WhatsApp\'tan gönder')}</a></div>`}
-function aiQueue(kind,title,args){const dup=(S.aiPending||[]).find(x=>x.status==='bekliyor'&&x.kind===kind&&JSON.stringify(x.args)===JSON.stringify(args));if(dup){dup.turn=aiTurnNo;save();return{onay_id:dup.id,ozet:dup.title,talimat:'Bu işlem zaten onay bekliyor. Patrona tek kısa cümleyle onay sor.'}}const p={id:rid().slice(0,6),t:new Date().toISOString(),kind,title,args,status:'bekliyor',turn:aiTurnNo};(S.aiPending=S.aiPending||[]).push(p);save();aiPaint();
-  return{onay_id:p.id,ozet:title,talimat:'İşlem HENÜZ YAPILMADI. Patrona tek kısa cümleyle onay sor. Evet derse onayla aracını bu onay_id ile çağır.'}}
+function aiNote(c,x){(S.aiChat=S.aiChat||[]).push({r:c,x,t:new Date().toISOString()});try{toast(x.slice(0,140))}catch(e){}save();aiPaint()}
+{const _aiT=aiTools;aiTools=function(){return _aiT().map(t=>{if(t.name!=='islem_hazirla'&&t.name!=='onay_cevabi')return t;return{...t,execute:async i=>{const P=t.name==='onay_cevabi'&&(S.aiPending||[]).find(x=>x.id===String(i.onay_id));
+  try{const r=await t.execute(i);if(P&&i.karar==='evet'&&!(typeof r==='string'&&r.startsWith('İKİNCİ')))aiNote('ok','✓ Yapıldı: '+P.title+(typeof r==='string'&&r&&r!=='yapıldı'?' · '+r:''));else if(P&&i.karar!=='evet')aiNote('ok','İptal edildi: '+P.title);return r}
+  catch(e){aiNote('bad',(t.name==='islem_hazirla'?'✗ Hazırlanamadı: ':'✗ Yapılmadı: ')+String(e&&e.message||e).replace(/^ONAY YOK: işlem yapılmadı\. /,'Onayınız duyulmadı. '));throw e}}}})}}
+function aiQueue(kind,title,args,danger){const dup=(S.aiPending||[]).find(x=>x.status==='bekliyor'&&x.kind===kind&&JSON.stringify(x.args)===JSON.stringify(args));if(dup){dup.turn=aiTurnNo;save();return{onay_id:dup.id,ozet:dup.title,talimat:'Bu işlem zaten onay bekliyor. Patrona tek kısa cümleyle onay sor.'}}const p={id:rid().slice(0,6),t:new Date().toISOString(),kind,title,args,status:'bekliyor',turn:aiTurnNo,...(danger?{danger:true}:{})};(S.aiPending=S.aiPending||[]).push(p);save();aiPaint();
+  return{onay_id:p.id,ozet:title,talimat:danger?'SİLME işlemi HENÜZ YAPILMADI. Patrona tek kısa cümleyle onay sor (örn. "... siliyorum, onaylıyor musunuz?"). Evet derse onay_cevabi ile çağır; araç ikinci onay isterse bir kez daha sor.':'İşlem HENÜZ YAPILMADI. Patrona tek kısa cümleyle onay sor. Evet derse onay_cevabi aracını bu onay_id ile çağır.'}}
 const AI_TOOLS_ACT=[
  {name:'is_ata',description:'Bir çalışana yeni iş verir (onay ister). satis: satış no veya müşteri adı. tur: hazirlama, teslimat veya diger. diger için not zorunlu.',
   inputSchema:{type:'object',properties:{kisi:{type:'string'},satis:{type:'string'},tur:{type:'string',enum:['hazirlama','teslimat','diger']},not:{type:'string'},termin:{type:'string',description:'YYYY-AA-GG'}},required:['kisi','satis','tur']},
@@ -1196,8 +1330,8 @@ const AI_TOOLS_ACT=[
    const tot=L.reduce((a,l)=>a+l.qty*l.cost,0);return aiQueue('po',`${trEk(t.name,'e')} sipariş: ${L.map(l=>l.name+' '+l.qty).join(', ')} · ${fmt(tot)}`,{sup:t.id,lines:L,total:tot})}},
  {name:'esnaf_siparisi',description:'Kayıtlı bir esnafa motor siparişi girer (onay ister). eski_motor: getirdi, sonra veya yok.',
   inputSchema:{type:'object',properties:{esnaf:{type:'string'},motor:{type:'string'},adet:{type:'number'},eski_motor:{type:'string',enum:['getirdi','sonra','yok']}},required:['esnaf','motor']},
-  execute:i=>{const e=aiFind(S.esnaf||[],i.esnaf,x=>x.shop+' '+(x.name||''));if(!e)throw new Error('Esnaf bulunamadı: '+(S.esnaf||[]).map(x=>x.shop).join(', '));const m=aiFind(S.engines,i.motor,x=>x.name+' '+x.code);if(!m)throw new Error('Motor bulunamadı');const n=Math.max(1,Math.round(+i.adet||1));
-   const q=newQ(m.id);q.qty=n;q.core=CORE[i.eski_motor]?i.eski_motor:'getirdi';return aiQueue('esnaf',`${e.shop} siparişi: ${n} adet ${m.name} · ${fmt(compute(q).total)}`,{eid:e.id,engineId:m.id,qty:n,core:q.core})}},
+  execute:i=>{const e=aiFind(S.esnaf||[],i.esnaf,x=>x.shop+' '+(x.name||''));const ph=String(i.telefon||'').replace(/[^\d+]/g,'');if(!e&&ph.replace(/\D/g,'').length<10)throw new Error('"'+i.esnaf+'" kayıtlı esnaf değil. Telefonunu sor; sonra esnaf_siparisi türünü telefon (ve varsa adres) ile tekrar hazırla, yeni esnaf da kaydedilir. Kayıtlı esnaflar: '+((S.esnaf||[]).map(x=>x.shop).join(', ')||'yok'));const m=aiFind(S.engines,i.motor,x=>x.name+' '+x.code);if(!m)throw new Error('Motor bulunamadı: '+S.engines.map(x=>x.name).join(', '));const n=Math.max(1,Math.round(+i.adet||1));
+   const q=newQ(m.id);q.qty=n;q.core=CORE[i.eski_motor]?i.eski_motor:'getirdi';const ne=e?null:{shop:String(i.esnaf).slice(0,60),name:String(i.yetkili||'').slice(0,60),phone:ph,addr:String(i.adres||'').slice(0,200)};return aiQueue('esnaf',`${e?e.shop:'Yeni esnaf '+ne.shop+' ('+ph+') eklenip'} siparişi: ${n} adet ${m.name} · ${fmt(compute(q).total)}`,{eid:e?e.id:null,ne,engineId:m.id,qty:n,core:q.core})}},
  {name:'hazirlama_isi',description:'Bir çalışana stoğa motor hazırlama işi verir (onay ister): motor, adet, kisi (boşsa vekil).',
   inputSchema:{type:'object',properties:{motor:{type:'string'},adet:{type:'number'},kisi:{type:'string'},termin:{type:'string'}},required:['motor','adet']},
   execute:i=>{const m=aiFind(S.engines,i.motor,x=>x.name+' '+x.code);if(!m)throw new Error('Motor bulunamadı');const n=Math.max(1,Math.round(+i.adet||1));const u=i.kisi?aiUser(i.kisi):S.users.find(x=>x.id===S.settings.vekil);if(!u)throw new Error('Kime verileceğini sor');return aiQueue('prep',`${trEk(u.name,'e')} ${n} adet ${m.name} hazırlama işi`,{eid:m.id,n,to:u.id,due:i.termin||today()})}},
@@ -1244,28 +1378,50 @@ const AI_TOOLS_ACT=[
  {name:'sifre_yenile',description:'Bir çalışanın giriş şifresini yeniler (onay ister); yeni şifre WhatsApp ile gönderilebilir.',
   inputSchema:{type:'object',properties:{kisi:{type:'string'}},required:['kisi']},
   execute:i=>{const u=aiUser(i.kisi);if(u.role==='patron')throw new Error('Patron şifresi asistanla değiştirilemez');return aiQueue('pin',`${u.name} için yeni şifre oluştur`,{uid:u.id})}},
+ {name:'kayit',description:'Kayıt ekler, düzenler veya siler (onay ister; silmede iki onay).',
+  inputSchema:{type:'object',properties:{tablo:{type:'string'},islem:{type:'string'},hedef:{type:'string'}},required:['tablo','islem']},
+  execute:i=>aiRec(i)},
+ {name:'gider_ekle',description:'Tek seferlik gider kaydeder (onay ister).',
+  inputSchema:{type:'object',properties:{kategori:{type:'string'},tutar:{type:'number'}},required:['tutar']},
+  execute:i=>{const cat=aiCat(i.kategori),n=Math.round(+i.tutar||0);if(!(n>0))throw new Error('Tutar gerekli');const u=i.kisi?aiUser(i.kisi):null;if((cat==='maas'||cat==='avans'||cat==='prim')&&!u)throw new Error('Kime ödendi? kisi gerekli');const date=aiDate(i.tarih)||today(),m=aiPayM(i.yontem);
+   return aiQueue('exadd',`Gider: ${EXC[cat]}${u?' · '+u.name:''}${i.aciklama?' · '+String(i.aciklama).slice(0,60):''} · ${fmt(n)} (${m}, ${fdate(date)})`,{d:{cat,uid:u?u.id:'',title:String(i.aciklama||'').slice(0,80),amt:n,date,m}})}},
+ {name:'avans_ver',description:'Çalışana avans kaydeder; o ayın maaşından düşülür (onay ister).',
+  inputSchema:{type:'object',properties:{kisi:{type:'string'},tutar:{type:'number'}},required:['kisi','tutar']},
+  execute:i=>AI_ACT_MAP.gider_ekle.execute({...i,kategori:'avans'})},
+ {name:'maas_tanimla',description:'Çalışanın aylık maaşını ve ödeme gününü girer veya değiştirir (onay ister).',
+  inputSchema:{type:'object',properties:{kisi:{type:'string'},tutar:{type:'number'},gun:{type:'number'}},required:['kisi','tutar']},
+  execute:i=>{const u=aiUser(i.kisi),n=Math.round(+i.tutar||0);if(!(n>0))throw new Error('Maaş tutarı gerekli');const old=exTpls().find(x=>x.cat==='maas'&&x.uid===u.id),day=Math.min(31,Math.max(1,Math.round(+i.gun||(old&&old.day)||1)));
+   return aiQueue('exsabit',`${u.name} maaşı: ${fmt(n)}, ayın ${day}. günü${old?' (önceki '+fmt(old.amt)+')':''}`,{id:old?old.id:null,d:{cat:'maas',uid:u.id,amt:n,day}})}},
+ {name:'odeme_yap',description:'Vadesi gelen maaş veya düzenli ödemeyi ödendi olarak kaydeder (onay ister).',
+  inputSchema:{type:'object',properties:{hedef:{type:'string'},tutar:{type:'number'}},required:['hedef']},
+  execute:i=>{const D=exDue(31),h=i.hedef||i.kisi;let L=D.filter(x=>{const n=aiNorm(h);return aiNorm(x.title+' '+(x.tp.title||'')+' '+EXC[x.tp.cat]).includes(n)||(n.split(' ').filter(w=>w.length>2).length&&n.split(' ').filter(w=>w.length>2).every(w=>aiNorm(x.title).includes(w)))});
+   if(!L.length)throw new Error('Ödenecek kayıt bulunamadı. Açık ödemeler: '+(D.map(x=>x.title+' '+fmt(x.rest)).join(', ')||'yok'));const x=L[0],n=Math.round(+i.tutar||x.rest),date=aiDate(i.tarih)||today(),m=aiPayM(i.yontem);
+   return aiQueue('expay',`Ödendi: ${x.title} · ${fmt(n)} (${m}, ${fdate(date)})${n<x.rest?' · kalan '+fmt(x.rest-n):''}`,{tid:x.tp.id,per:x.per,amt:n,m,date})}},
+ {name:'geri_al',description:'Silinen bir kaydı geri getirir (onay ister).',
+  inputSchema:{type:'object',properties:{hedef:{type:'string'}},required:['hedef']},
+  execute:i=>{const L=(S.trash||[]).slice().reverse(),r=aiFind(L,i.hedef,x=>(TRASH_L[x.T]||'')+' '+x.title)||(!i.hedef||aiNorm(i.hedef).includes('son')?L[0]:null);if(!r)throw new Error('Silinenlerde bulunamadı: '+(L.slice(0,8).map(x=>x.title).join(', ')||'liste boş'));return aiQueue('restore',`Geri al: ${TRASH_L[r.T]} · ${r.title}`,{id:r.id})}},
  {name:'stok_girisi',description:'Bir parçanın stoğuna adet ekler (eksi sayı düşer). Onay ister.',
   inputSchema:{type:'object',properties:{parca:{type:'string'},adet:{type:'number'}},required:['parca','adet']},
   execute:i=>{const p=aiFind(S.parts,i.parca);if(!p)throw new Error('Parça bulunamadı');const n=Math.round(+i.adet||0);if(!n)throw new Error('Adet gerekli');return aiQueue('stok',`${p.name} stoğuna ${n>0?'+':''}${n} adet`,{pid:p.id,n})}},
  {name:'onayla',description:'Patron sesli olarak evet/tamam/yap dediğinde bekleyen işlemi uygular. Patron onay vermeden ASLA çağırma.',
   inputSchema:{type:'object',properties:{onay_id:{type:'string'}},required:['onay_id']},
-  execute:i=>{const p=(S.aiPending||[]).find(x=>x.id===String(i.onay_id));if(!p)throw new Error('Bu onay bulunamadı');if(!(p.turn<aiTurnNo)||!aiIsYes(aiLastUser))throw new Error('ONAY YOK: işlem yapılmadı. Patrona tek kısa cümleyle onay sor ve cevabını bekle.');return aiRun(p)}},
+  execute:i=>{const p=(S.aiPending||[]).find(x=>x.id===String(i.onay_id));if(!p)throw new Error('Bu onay bulunamadı');if(!(p.turn<aiTurnNo)||!aiIsYes(aiLastUser))throw new Error('ONAY YOK: işlem yapılmadı. Patrona tek kısa cümleyle onay sor ve cevabını bekle.');const r=aiRun(p);return r==='__IKINCI__'?'İKİNCİ ONAY GEREKİYOR, işlem henüz yapılmadı. Patrona "Emin misiniz? Siliyorum." diye bir kez daha sor; evet derse onay_cevabi aracını aynı onay_id ile tekrar çağır.':r}},
  {name:'iptal',description:'Patron hayır/dur/vazgeç dediğinde bekleyen işlemi iptal eder.',
   inputSchema:{type:'object',properties:{onay_id:{type:'string'}},required:['onay_id']},
   execute:i=>{const p=(S.aiPending||[]).find(x=>x.id===String(i.onay_id));if(!p)throw new Error('Bu onay bulunamadı');p.status='iptal';p.doneAt=new Date().toISOString();save();aiPaint();return 'iptal edildi'}}
 ];
-const AI_YESW=new Set('evet tamam tamamdır tamamdir yap yapın yapalım olur onayla onaylıyorum onaylıyoruz onayladım gönder aynen doğru peki kabul hıhı he'.split(' ')),AI_NOW=new Set('hayır hayir dur yapma vazgeç vazgeçtim iptal bekle gönderme olmaz'.split(' '));
+const AI_YESW=new Set('evet evt tamam tamamdır tamamdir yap yapın yapalım yapabilirsin olur olsun onayla onaylıyorum onaylıyoruz onaylıyor onayladım onaylı gönder aynen doğru peki kabul hıhı he tabii tabi elbette uygundur'.split(' ')),AI_NOW=new Set('hayır hayir dur yapma vazgeç vazgeçtim iptal bekle gönderme olmaz'.split(' '));
 function aiIsNo(t){return aiNorm(t).split(' ').some(x=>AI_NOW.has(x))}
 function aiIsYes(t){const w=aiNorm(t).split(' ');return w.some(x=>AI_YESW.has(x))&&!w.some(x=>AI_NOW.has(x))}
 let aiTurnNo=0,aiNoTools=null;
-function aiRun(p){if(p.status!=='bekliyor')return 'Bu işlem zaten '+(p.status==='yapildi'?'yapılmış':'iptal edilmiş');const a=p.args,t=new Date().toISOString(),tag=' · Asistan';let res='yapıldı',extra=null;
+function aiRun(p){if(p.status!=='bekliyor')return 'Bu işlem zaten '+(p.status==='yapildi'?'yapılmış':'iptal edilmiş');if(p.danger&&!p.c2){p.c2=true;p.turn=aiTurnNo;save();aiPaint();return '__IKINCI__'}const a=p.args,t=new Date().toISOString(),tag=' · Asistan';let res='yapıldı',extra=null;
   if(p.kind==='is_ata'){const s=S.sales.find(x=>x.id===a.sid);mkJob(s,a.kind,a.uid,{note:a.note,...(a.due?{due:a.due}:{})});logAct(s,'İş verdi ('+uname(a.uid)+': '+(a.kind==='diger'?a.note:JK[a.kind].toLowerCase())+')'+tag)}
   else if(p.kind==='is_aktar'){const s=S.sales.find(x=>x.id===a.sid),j=s&&(s.jobs||[]).find(x=>x.id===a.jid);if(!j)throw new Error('İş artık yok');const old=j.to;j.to=a.uid;j.wSeen=false;delete j.seenAt;j.hist.push({t,u:CUR.name,st:j.status,note:'İş '+uname(old)+' yerine '+uname(a.uid)+' kişisine verildi (asistan)'});logAct(s,'İşi '+uname(a.uid)+' kişisine verdi ('+jobLabel(j)+')'+tag)}
   else if(p.kind==='mesaj'){(S.msgs=S.msgs||[]).push({id:rid(),from:CUR.id,to:a.to,t,text:a.text,readBy:{[CUR.id]:t}})}
   else if(p.kind==='konum'){const pl=places().find(x=>x.id===a.pid)||{};(S.msgs=S.msgs||[]).push({id:rid(),from:CUR.id,to:a.to,t,text:'',loc:{name:pl.name,addr:pl.addr,url:pl.url||''},readBy:{[CUR.id]:t}})}
   else if(p.kind==='ping'){(S.pings=S.pings||[]).push({id:rid(),to:a.uid,by:CUR.name,t,answered:false})}
   else if(p.kind==='po'){const po={id:rid(),no:nextPoNo(),sup:a.sup,date:today(),t,by:CUR.name+' (asistan)',lines:a.lines,total:a.total,status:'gonderildi'};(S.pos=S.pos||[]).push(po);p.po=po.id;res=po.no+' oluşturuldu; WhatsApp mesajı hazır, patron tek dokunuşla gönderecek'}
-  else if(p.kind==='esnaf'){const e=(S.esnaf||[]).find(x=>x.id===a.eid);const q=newQ(a.engineId);q.qty=a.qty;q.core=a.core;q.name=e.shop;q.phone=e.phone;
+  else if(p.kind==='esnaf'){let e=(S.esnaf||[]).find(x=>x.id===a.eid);if(!e&&a.ne){e={id:'n'+Date.now(),...a.ne};(S.esnaf=S.esnaf||[]).push(e);a.eid=e.id}if(!e)throw new Error('Esnaf artık yok');const q=newQ(a.engineId);q.qty=a.qty;q.core=a.core;q.name=e.shop;q.phone=e.phone;
     const s={id:'s'+Date.now(),no:nextNo(),token:rid(),kind:'esnaf',esnafId:e.id,customer:{name:e.shop,phone:e.phone,plate:''},status:'satildi',dates:{geldi:today(),satildi:today()},seen:true,approved:{u:CUR.name,t},...snapshot(q),delivery:{mode:e.addr?'adres':'dukkan',where:e.addr||''}};
     if(e.kvkk)s.kvkk={at:e.kvkk.at,how:'yuz',by:e.kvkk.by};s.by=CUR.name;S.sales.push(s);logAct(s,'Esnaf siparişi oluşturdu ('+a.qty+' adet)'+tag);if((S.settings.jobTrigger||'imza')!=='manuel')startJobs(s,true);reserveSale(s);res=s.no+' kaydedildi'}
   else if(p.kind==='sale'){const q=newQ(a.engineId);q.qty=a.qty;q.core=a.core;q.name=a.name;q.phone=a.phone;
@@ -1289,6 +1445,19 @@ function aiRun(p){if(p.status!=='bekliyor')return 'Bu işlem zaten '+(p.status==
   else if(p.kind==='prep'){createTask({kind:'hazirlama',to:[a.to||S.settings.vekil].filter(Boolean),title:a.n+' adet '+engName(a.eid)+' hazırla',eid:a.eid,qty:a.n,due:a.due})}
   else if(p.kind==='task'){createTask({kind:a.kind,to:a.to,title:a.title,place:a.place||null,note:a.note||'',due:a.due})}
   else if(p.kind==='stok'){const pt=part(a.pid);pt.stock=(+pt.stock||0)+a.n;(S.stockLog=S.stockLog||[]).push({id:rid(),t,pid:pt.id,d:a.n,ref:'Asistan',by:CUR.name})}
+  else if(p.kind==='rec'){const T=a.T,op=a.op,k=TRASH_T[T];const L=S[k]=S[k]||[];
+    if(op==='ekle'){const o={id:({esnaf:'n',tedarikci:'t',parca:'p'}[T]||'r')+Date.now(),...a.patch};if(T==='parca'){o.cost=+o.cost||0;o.min=+o.min||0;o.stock=0;o.sup=o.sup||''}if(T==='tedarikci')o.phone=o.phone||'';if(T==='esnaf'){o.name=o.name||'';o.addr=o.addr||''}L.push(o);res=(o.shop||o.name||'kayıt')+' eklendi'}
+    else{const o=L.find(x=>x.id===a.id);if(!o)throw new Error('Kayıt artık yok');
+      if(op==='sil'){trashPut(T,o,p.title.replace(/^SİL: [^·]*· /,''));
+        if(T==='calisan'){const r=S.settings.rules||{};Object.keys(r).forEach(q=>r[q]=(r[q]||[]).filter(x=>x!==o.id))}
+        else if(T==='parca')S.engines.forEach(e=>e.recipe=(e.recipe||[]).filter(r=>r.pid!==o.id));
+        else if(T==='tedarikci')S.parts.forEach(q=>{if(q.sup===o.id)q.sup=''});
+        S[k]=L.filter(x=>x.id!==o.id);res='silindi; Silinenler listesinden geri alınabilir'}
+      else{const c={...a.patch};if(c.customer){Object.assign(o.customer,c.customer);delete c.customer}Object.assign(o,c);if(T==='satis')logAct(o,'Bilgileri düzenledi'+tag);res='güncellendi'}}}
+  else if(p.kind==='exadd'){exSave(null,'odeme',a.d)}
+  else if(p.kind==='exsabit'){exSave(a.id||null,'sabit',a.d)}
+  else if(p.kind==='expay'){const tp=(S.expenses||[]).find(y=>y.id===a.tid);if(!tp)throw new Error('Düzenli ödeme artık yok');exPayTpl(tp,a.per,a.amt,a.m,a.date)}
+  else if(p.kind==='restore'){res=trashRestore(a.id)+' geri getirildi'}
   p.status='yapildi';p.doneAt=t;p.result=res;(S.aiLog=S.aiLog||[]).push({t,title:p.title,result:res,kind:p.kind});save();aiPaint();return res}
 function aiCtx(){return `Sen Eren Oto'nun (Renault ticari motor revizyonu yapan atölye) asistanısın. Patron ${CUR.name} ile SESLİ konuşuyorsun; yazdığın her şey sesli okunacak.
 KURALLAR:
@@ -1304,7 +1473,6 @@ KURALLAR:
 - Patron evet/tamam/yap derse onay_cevabi aracını onay_id ve karar=evet ile çağır ve sadece "Tamam, yapıldı." de (tedarikçi siparişinde "Tamam, sipariş hazır, WhatsApp'tan gönderebilirsiniz." de). Hayır/dur/vazgeç derse onay_cevabi aracını karar=hayir ile çağır ve "Tamam, iptal." de.
 - Komut belirsizse sadece eksik bilgiyi kısaca sor (örn. "Ahmet'in hangi işini?"). Gerekirse önce veri_oku konu=isler ile listele.
 - Tedarikçi siparişinde: eksik parçaları söyle, her biri için "kaç tane?" diye sor, cevapları not al, hepsi bitince islem_hazirla tur=tedarikci_siparisi ile tüm kalemleri bir kez gönder.
-- Silme, fiyat değiştirme, satış iptali yapamazsın; "Bunu güvenlik için panelden yapın" de.
 BAĞLAM: Bugün ${new Date().toLocaleDateString('tr-TR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}, saat ${new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}.
 Kişiler: ${S.users.map(u=>u.name+' ('+ROLES[u.role].split(' (')[0]+(u.task?', '+(TASKS[u.task]||''):'')+')').join(', ')}.
 Tedarikçiler: ${(S.suppliers||[]).map(t=>t.name).join(', ')||'yok'}. Esnaflar: ${(S.esnaf||[]).map(e=>e.shop).join(', ')||'yok'}. Motorlar: ${S.engines.map(e=>e.name).join(', ')}. Kayıtlı konumlar: ${places().map(p=>p.name).join(', ')||'yok'}.
@@ -1315,14 +1483,19 @@ Bekleyen hatırlatmalar: ${(S.reminders||[]).filter(r=>!r.done).map(r=>fdt(r.at)
 - Öncelik, plan, strateji, "ne önerirsin", "stok yeter mi", "işleri nasıl dağıtalım" gibi düşünmek gereken sorularda derin_dusun aracını çağır ve sonucunu kısa, net, konuşur gibi aktar.
 - Bilgi verdikten sonra ilgili bir sayfa varsa kısaca "İsterseniz ... sayfasını açayım" de. Patron "aç", "göster", "götür", "yönlendir" derse sayfa_ac aracını hemen çağır (onay gerekmez).
 - "Mesajlarım", "kim ne yazmış", "Ahmet ne demiş" denirse mesajlari_oku ile oku ve kısaca söyle; cevap istenirse mesaj_gonder ile hazırla.
-- Yetkilerin geniş: satış açma, teklif formu ve sözleşme gönderme, tahsilat, teslim, teklif onayı, sipariş onayı ve teslim alma, tedarikçiye ödeme, esnaf tahsilatı, müşteriye WhatsApp, çalışan ekleme ve şifre. Hepsi islem_hazirla ile hazırlanır ve tek kısa cümleyle onay sorulur. Silme ve fiyat değiştirme yapamazsın.
+- Yetkilerin TAM: uygulamada elle yapılabilen her şeyi yapabilirsin. Satış, esnaf, çalışan, tedarikçi, parça, motor fiyatı, iş, gider, maaş ve düzenli ödeme ekleyebilir, düzenleyebilir, silebilirsin; tahsilat, ödeme, avans, teslim, onay, sipariş, WhatsApp mesajı, şifre işlerini yaparsın. Hepsi islem_hazirla ile hazırlanır ve tek kısa cümleyle onay sorulur.
+- SİLME: araç önce bir onay ister; patron evet derse onay_cevabi çağır. Araç "İKİNCİ ONAY GEREKİYOR" derse "Emin misiniz? Siliyorum." diye bir kez daha sor; tekrar evet derse aynı onay_id ile onay_cevabi'nı yeniden çağır. Silinen kayıt Silinenler listesine gider, geri_al ile geri getirilebilir.
+- ÇOK ÖNEMLİ: Bir araç hata dönerse işlem YAPILMAMIŞTIR. Hatanın sebebini kısaca söyle ve eksik bilgiyi sor; asla "yapıldı" deme. islem_hazirla hata verdiyse onay da sorma. "Tamam, yapıldı" sadece onay_cevabi başarılı sonuç döndürdüğünde söylenir.
+- Para soruları (bugün ne girdi, ne çıktı, maaşlara ne lazım, kime ne ödenecek, net kâr) için veri_oku konu=kasa ile oku.
+- Patron "... sayfasını aç", "Ahmet Bey'in siparişini göster", "Mehmet esnafı göster", "giderlere git" derse sayfa_ac aracını sayfa ve/veya hedef ile çağır; "aşağı in", "yukarı çık", "en alta git" derse sayfa_ac kaydir ile çağır.
+İŞLEM TÜRLERİ (islem_hazirla tur değeri ve alanları): is_ata (kisi, satis, is_turu, not, termin), is_aktar (is_id, yeni_kisi), mesaj_gonder (kime, metin), konum_gonder (kime, konum), durum_sor (kisi), tedarikci_siparisi (tedarikci, kalemler:[{parca,adet}]), esnaf_siparisi (esnaf, motor, adet, eski_motor; esnaf kayıtlı değilse telefon ve varsa adres de ver, esnaf da eklenir), stok_girisi (parca, adet), hazirlama_isi (motor, adet, kisi, termin), bagimsiz_is (kisi, is, yer, termin), yeni_satis (musteri, telefon, motor, adet, eski_motor, plaka), teklif_formu_gonder (musteri, telefon), sozlesme_gonder (satis), tahsilat (satis, tutar, yontem), teslim_edildi (satis), teklif_onayla (satis), siparis_onayla (siparis, karar), siparis_teslim_al (siparis), tedarikciye_odeme (tedarikci, tutar, yontem), esnaf_tahsilat (esnaf, tutar, yontem), musteriye_mesaj (satis, metin), calisan_ekle (ad, gorev, telefon), sifre_yenile (kisi), kayit (tablo, islem, hedef ve değişecek alanlar: kayıt ekler, düzenler veya siler. tablo: esnaf [ad, yetkili, telefon, adres], calisan [ad, telefon, gorev; maaş için tutar ve gun], tedarikci [ad, telefon], parca [ad, maliyet, min, tedarikci], motor [fiyat, ad; sadece duzenle/sil], satis [musteri adı değişikliği için ad, telefon, plaka, not; sil = satışı tamamen siler], is [termin, not; sil], gider [tutar, tarih, aciklama], duzenli_odeme [kategori, aciklama, tutar, gun]. hedef: değişecek ya da silinecek kaydın şimdiki adı), gider_ekle (kategori: maas/avans/prim/kira/elektrik/su/dogalgaz/yakit/vergi/sgk/internet/malzeme/diger, tutar, kisi, aciklama, tarih, yontem), avans_ver (kisi, tutar, yontem), maas_tanimla (kisi, tutar, gun = ayın kaçında), odeme_yap (hedef = kişi ya da ödeme adı, tutar boşsa kalanın hepsi, yontem, tarih), geri_al (hedef = silinen kaydın adı).
 - WhatsApp'a giden işlerde onaydan sonra "Tamam, hazır; WhatsApp düğmesine dokunup gönderebilirsiniz" de.
 - Patron konuşmayı bitirmek isterse ("bitir", "bugünlük yeter", "sağ ol", "görüşürüz", "kapat") kısaca veda et (örn. "Kolay gelsin, görüşmek üzere.") ve konusmayi_bitir aracını çağır.`}
 async function aiAsk(text){if(LIVE.ok&&MODE==='app'){liveText(String(text||'').trim());return}text=String(text||'').trim();if(!text||aiBusy)return;await aiSetup();
   if(!AI.sample){aiStatus='Yapay zeka bu görünümde kullanılamıyor (claude.ai içinde açın).';aiPaint();return}
   aiLastUser=text;aiTurnNo++;(S.aiChat=S.aiChat||[]).push({r:'u',x:text,t:new Date().toISOString()});aiTurns.push({role:'user',content:text});
   {const P0=(S.aiPending||[]).filter(p=>p.status==='bekliyor'&&p.turn<aiTurnNo),mt=Math.max(-1,...P0.map(p=>p.turn)),LP=P0.filter(p=>p.turn===mt),wc=aiNorm(text).split(' ').length;
-   if(LP.length&&wc<=6&&(aiIsYes(text)||aiIsNo(text))){let msg;try{if(aiIsYes(text)){LP.forEach(p=>aiRun(p));msg=LP.some(p=>p.kind==='po'||p.wa)?'Tamam, hazır. WhatsApp düğmesine dokunup gönderebilirsiniz.':'Tamam, yapıldı.'}else{LP.forEach(p=>{p.status='iptal';p.doneAt=new Date().toISOString()});msg='Tamam, iptal.'}}catch(e){msg='Yapamadım: '+e.message}
+   if(LP.length&&wc<=6&&(aiIsYes(text)||aiIsNo(text))){let msg;try{if(aiIsYes(text)){const RS=LP.map(p=>aiRun(p));msg=RS.includes('__IKINCI__')?'Emin misiniz? Silinecek: '+LP.filter(p=>p.danger).map(p=>p.title.replace(/^SİL: /,'')).join(', ')+'. Bir kez daha onaylayın.':LP.some(p=>p.kind==='po'||p.wa)?'Tamam, hazır. WhatsApp düğmesine dokunup gönderebilirsiniz.':'Tamam, yapıldı.'}else{LP.forEach(p=>{p.status='iptal';p.doneAt=new Date().toISOString()});msg='Tamam, iptal.'}}catch(e){msg='Yapamadım: '+e.message;aiNote('bad','✗ Yapılmadı: '+e.message)}
      aiTurns.push({role:'assistant',content:msg});S.aiChat.push({r:'a',x:msg,t:new Date().toISOString()});save();aiPaint();if(aiVoice&&AI.tts)AI.tts.speak(msg,{language:'tr'}).catch(()=>{});return}}
   aiBusy=true;aiState='thinking';aiStatus='Düşünüyor…';const live={r:'a',x:'',t:new Date().toISOString(),live:true};S.aiChat.push(live);aiPaint();
   aiCtl=new AbortController();
@@ -1336,8 +1509,8 @@ async function aiAsk(text){if(LIVE.ok&&MODE==='app'){liveText(String(text||'').t
     if(aiVoice&&AI.tts&&ans){AI.tts.speak(ans.slice(0,1900),{language:'tr',rate:1.05}).catch(()=>{})}}
   catch(e){console.error('asistan',e);delete live.live;live.x=e.code==='cancelled'?(e.text||'(durduruldu)'):e.code==='not_granted'?'Yapay zeka izni verilmedi.':e.code==='rate_limited'?'Çok sık soruldu, biraz bekleyip tekrar deneyin.':e.code==='session_expired'?'Claude oturumunuz kapanmış; sayfayı yenileyip tekrar giriş yapın.':e.code==='sampling_disabled'?'Bu hesapta yapay zeka kullanımı kapalı.':'Bir sorun oldu, tekrar dener misiniz? (hata: '+((e&&(e.code||e.message))||String(e)).toString().slice(0,80)+')';aiTurns.pop();aiBusy=false;aiState='idle';aiStatus='';save();aiPaint()}}
 function aiCard(p){const po=p.po&&(S.pos||[]).find(x=>x.id===p.po),sup=po&&(S.suppliers||[]).find(t=>t.id===po.sup);
-  return `<div class="aicard ${p.status==='yapildi'?'done':p.status==='iptal'?'cancel':''}"><span class="k">${p.status==='bekliyor'?'Onay bekliyor':p.status==='yapildi'?'Yapıldı ✓':'İptal edildi'} · ${new Date(p.t).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</span><b>${esc(p.title)}</b>
-  ${p.status==='bekliyor'?`<div class="row"><button class="btn pri" data-act="aiok" data-id="${p.id}">Onayla</button><button class="btn" data-act="ainok" data-id="${p.id}">Vazgeç</button></div>`:''}
+  return `<div class="aicard ${p.status==='yapildi'?'done':p.status==='iptal'?'cancel':''}"><span class="k">${p.status==='bekliyor'?(p.c2?'⚠️ Silinecek, emin misiniz?':p.danger?'Onay bekliyor (silme)':'Onay bekliyor'):p.status==='yapildi'?'Yapıldı ✓':'İptal edildi'} · ${new Date(p.t).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</span><b>${esc(p.title)}</b>
+  ${p.status==='bekliyor'?`<div class="row"><button class="btn ${p.c2?'dangerfill':'pri'}" data-act="aiok" data-id="${p.id}">${p.c2?'Evet, sil':'Onayla'}</button><button class="btn" data-act="ainok" data-id="${p.id}">Vazgeç</button></div>`:''}
   ${p.wa&&p.status==='yapildi'?aiWaMsg(p):''}
   ${po&&p.status==='yapildi'?`<span class="pst ${po.sentAt?'ok':'late'}">${po.sentAt?'✓ WhatsApp mesajı gönderildi':'WhatsApp\'tan henüz gönderilmedi'}</span>`:''}${po&&sup&&sup.phone&&p.status==='yapildi'&&!po.sentAt?`<div class="row"><a class="btn sm wa" href="${waLink(sup.phone,poMsg(po))}" target="_blank" rel="noopener" data-posent="${po.id}">${WA_ICON}WhatsApp'tan gönder</a><button class="btn sm" data-act="popdf" data-id="${po.id}">PDF</button></div>`:''}</div>`}
 function pAsistan(){setTimeout(aiSetup,0);const pend=aiPend();
@@ -1352,7 +1525,7 @@ function pAsistan(){setTimeout(aiSetup,0);const pend=aiPend();
     <div class="form2"><label class="f"><span>Ne?</span><input type="text" id="rem-txt" placeholder="Örn. Burak Bey'i ara"></label><label class="f"><span>Ne zaman?</span><input type="datetime-local" id="rem-at"></label></div><div><button class="btn" data-act="remadd">Hatırlatma kur</button></div>
     <div class="ailog">${RM.map(r=>`<div style="${r.done?'opacity:.6':''}"><time>${fdt(r.at)}${r.done?' · gönderildi':''}</time>${esc(r.text)}<div>${delBtn('rem'+r.id,'remdel',`data-id="${r.id}"`,'Sil')}</div></div>`).join('')||'<div class="empty">Hatırlatma yok.</div>'}</div></div>`;return h}
   if(aiSeg==='onay'){h+=`<div class="section">${pend.length>1?`<div><button class="btn pri" data-act="aiokall">Hepsini onayla (${pend.length})</button></div>`:''}${pend.map(aiCard).join('')||'<div class="empty">Onay bekleyen işlem yok. Asistana verdiğiniz ve henüz onaylamadığınız işler burada birikir.</div>'}</div>`;return h}
-  if(aiSeg==='gecmis'){const L=(S.aiLog||[]).slice().reverse();h+=`<div class="section"><div class="ailog">${L.map(x=>`<div><time>${new Date(x.t).toLocaleString('tr-TR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</time>${esc(x.title)}<br><span class="small muted">${esc(x.result||'')}</span></div>`).join('')||'<div class="empty">Asistan henüz bir işlem yapmadı.</div>'}</div></div>`;return h}
+  if(aiSeg==='gecmis'){const L=(S.aiLog||[]).slice().reverse();h+=`<div class="section"><div class="ailog">${L.map(x=>`<div><time>${new Date(x.t).toLocaleString('tr-TR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</time>${esc(x.title)}<br><span class="small muted">${esc(x.result||'')}</span></div>`).join('')||'<div class="empty">Asistan henüz bir işlem yapmadı.</div>'}</div></div>`+trashHtml();return h}
   const C=(S.aiChat||[]).slice(-30);
   if(S.aiReport&&S.aiReport.text&&(()=>{const d=new Date(S.aiReport.t);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')===today()})())h+=`<div class="section"><div class="aicard done"><span class="k">☀️ Sabah raporu · ${new Date(S.aiReport.t).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</span><div style="white-space:pre-wrap">${esc(S.aiReport.text)}</div></div></div>`;
   h+=`<div class="aithread" id="aithread">${C.length?'':`<div class="empty">Mikrofona dokunup konuşun. Örnekler: "Bugün kaç işimiz var?", "Ahmet'in üzerinde ne var?", "Stokta azalan ne var, Osman'a sipariş verelim", "Mehmet'e mesaj at, yanıma gelsin".</div>`}${C.map(m=>`<div class="aimsg ${m.r}"${m.live?' id="ailive"':''}>${esc(m.x||(m.live?'…':''))}</div>`).join('')}${aiPartial||aiBuf?`<div class="aimsg u partial">${esc((aiBuf+' '+aiPartial).trim())}</div>`:''}${(S.aiPending||[]).filter(p=>p.status==='bekliyor'||(p.status==='yapildi'&&(p.wa||p.po)&&Date.now()-new Date(p.doneAt||0).getTime()<30*60000)).slice(-3).map(aiCard).join('')}</div>
@@ -1717,6 +1890,7 @@ function pTeam(){
     ${u.pinSent||!u.pin?`<div class="row"><span>Şifre: <b>••••</b> <span class="small muted">(${u.phone?'kişiye gönderildi':'cihaza girildi'}, kimse göremez)</span></span><button class="btn sm" data-act="pinreset" data-id="${u.id}">Şifreyi sıfırla</button></div>`
       :`<div class="note" style="display:flex;flex-direction:column;gap:8px"><span>Yeni şifre: <b class="num" style="font-size:20px;letter-spacing:.12em">${esc(u.pin)}</b></span>${u.phone?`<span class="small">Gönderdikten sonra şifre gizlenir.</span><div class="row"><a class="btn wa" data-pinsend="${u.id}" href="${waLink(u.phone,`Merhaba ${u.name}, Eren Oto uygulamasına giriş bilgilerin:\nUygulama: ${BOOT.url}?p=panel\nAdın: ${u.name}\nŞifren: ${u.pin}\n\nŞifreni kimseyle paylaşma.`)}" target="_blank" rel="noopener">${WA_ICON}Giriş bilgilerini WhatsApp'tan gönder</a></div>`:`<span class="small">${u.role==='dukkan'?'Bu şifreyi dükkanın tabletine siz girin.':'Telefon numarası girerseniz WhatsApp\'tan gönderebilirsiniz.'} Not aldıktan sonra gizleyin.</span><div class="row"><button class="btn sm pri" data-act="pinhide" data-id="${u.id}">Not aldım, şifreyi gizle</button></div>`}</div>`}
     ${u.role==='dukkan'?`<label class="toggle"><input type="checkbox" data-uf="discount" data-id="${u.id}" ${u.discount?'checked':''}><span>İndirim yapabilir ve fiyatı elle yazabilir</span></label>`:''}
+    ${(()=>{const tp=exTpls().find(x=>x.cat==='maas'&&x.uid===u.id);return tp?`<div class="small muted">Maaş: <b class="num">${fmt(tp.amt)}</b> · ayın ${tp.day}. günü (Kasa sayfasından düzenlenir)</div>`:''})()}
     ${!me?`<div>${delBtn('user'+u.id,'deluser',`data-id="${u.id}"`,'Bu kişiyi sil')}</div>`:''}</div>`}).join('')}
   <div><button class="btn sm" data-act="adduser">+ Kişi ekle</button></div></div></div>`;
   return h;
@@ -2165,13 +2339,13 @@ function saleCard(s){
 function soldIn(from){return S.sales.filter(s=>(s.status==='satildi'||s.status==='teslim')&&s.dates.satildi&&(!from||s.dates.satildi>=from))}
 function pAcc(){
   const now=new Date(),iso=d=>d.toISOString().slice(0,10);
-  const from={buay:iso(new Date(now.getFullYear(),now.getMonth(),1)),'3ay':iso(new Date(now.getFullYear(),now.getMonth()-2,1)),buyil:iso(new Date(now.getFullYear(),0,1)),tumu:null}[period];
+  const from={bugun:today(),hafta:weekStart(),buay:iso(new Date(now.getFullYear(),now.getMonth(),1)),'3ay':iso(new Date(now.getFullYear(),now.getMonth()-2,1)),buyil:iso(new Date(now.getFullYear(),0,1)),tumu:null}[period];
   const L=soldIn(from).sort((a,b)=>b.dates.satildi.localeCompare(a.dates.satildi));
   const ciro=L.reduce((a,s)=>a+s.total,0),cost=L.reduce((a,s)=>a+s.cost,0),lab=L.reduce((a,s)=>a+s.laborP,0),labC=L.reduce((a,s)=>a+s.laborC,0),kar=ciro-cost;
   const pending=S.sales.filter(s=>s.status==='geldi').reduce((a,s)=>a+s.total,0);
-  let h=`<div class="section"><div class="row" style="justify-content:space-between"><h2>Kasa ve kâr</h2><select id="period" style="max-width:200px">${[['buay','Bu ay'],['3ay','Son 3 ay'],['buyil','Bu yıl'],['tumu','Tüm zamanlar']].map(p=>`<option value="${p[0]}" ${p[0]===period?'selected':''}>${p[1]}</option>`).join('')}</select></div><p class="small muted" style="margin:0">Sözleşmesi imzalanan motorlar sayılır.</p>`;
+  let h=`<div class="section"><div class="row" style="justify-content:space-between"><h2>Kasa ve kâr</h2><select id="period" style="max-width:200px">${[['bugun','Bugün'],['hafta','Bu hafta'],['buay','Bu ay'],['3ay','Son 3 ay'],['buyil','Bu yıl'],['tumu','Tüm zamanlar']].map(p=>`<option value="${p[0]}" ${p[0]===period?'selected':''}>${p[1]}</option>`).join('')}</select></div><p class="small muted" style="margin:0">Sözleşmesi imzalanan motorlar sayılır.</p>`+accToday();
   h+=`<div class="kpis"><div class="kpi"><div class="l">Satılan motor</div><div class="v num">${L.length}</div><div class="s">${L.filter(s=>s.status==='teslim').length} teslim edildi</div></div><div class="kpi"><div class="l">Toplam satış</div><div class="v num">${fmt(ciro)}</div><div class="s">${L.reduce((a,s)=>a+(s.qty||1),0)} motor</div></div><div class="kpi"><div class="l">Toplam maliyet</div><div class="v num">${fmt(cost)}</div><div class="s">Parça ${fmt(cost-labC)} · işçilik ${fmt(labC)}</div></div><div class="kpi hl"><div class="l">Kâr</div><div class="v num">${fmt(kar)}</div><div class="s">Marj %${ciro?Math.round(kar/ciro*100):0}</div></div></div>`;
-  h+=`<div class="note">İmza bekleyen teklifler: <b class="num">${fmt(pending)}</b></div></div>`;
+  h+=`<div class="note">İmza bekleyen teklifler: <b class="num">${fmt(pending)}</b></div></div>`;h+=accExtra(from,kar);
   {const coll=S.sales.reduce((a,s)=>a+(s.pays||[]).filter(p=>!from||p.date>=from).reduce((b,p)=>b+(+p.amt||0),0),0);
    const signed=S.sales.filter(s=>s.status==='satildi'||s.status==='teslim'),alacak=signed.reduce((a,s)=>a+restOf(s),0);
    const open=[];S.sales.forEach(s=>{if(s.status==='gonderildi')return;planState(s).forEach(it=>{if(!it.done)open.push({s,it})})});open.sort((a,b)=>String(a.it.due||'9').localeCompare(String(b.it.due||'9')));
@@ -2200,7 +2374,7 @@ function pCust(){
   if(!L.length)h+='<div class="empty">Henüz müşteri yok.</div>';
   L.forEach(x=>{const k=phoneWa(x.c.phone),last=x.sales.at(-1),spent=x.sales.filter(s=>s.status==='satildi'||s.status==='teslim').reduce((a,s)=>a+s.total,0),n=x.c.name.split(' ')[0];
     h+=`<div class="sale st-${last.status}"><div class="hd"><div class="who"><b>${esc(x.c.name)}</b>${last.sample?'<span class="ex">ÖRNEK</span>':''}<div class="small muted">${esc(x.c.phone)}${x.c.plate?' · '+esc(x.c.plate):''}</div><div class="small">${last.engine?esc(last.engine):'Henüz motor seçmedi'}</div></div><div class="right"><span class="pill"><i class="dot"></i>${STL[last.status]}</span>${spent?`<span class="small muted">Toplam alım</span><span class="amt num">${fmt(spent)}</span>`:''}${(()=>{const r=x.sales.filter(s=>s.sign).reduce((a,s)=>a+restOf(s),0);return r?`<span class="rest num">Kalan ${fmt(r)}</span>`:''})()}</div></div>
-    <div class="row"><button class="btn sm pri" data-act="custnew" data-k="${k}">+ Yeni satış</button><a class="btn sm wa" href="${waLink(x.c.phone,TPL.teslim(n))}" target="_blank" rel="noopener">${WA_ICON}Hal hatır sor</a><a class="btn sm wa" href="${waLink(x.c.phone,TPL.bakim(n))}" target="_blank" rel="noopener">${WA_ICON}Bakım hatırlat</a><a class="btn sm" href="${waLink(x.c.phone,TPL.genel(n))}" target="_blank" rel="noopener">Mesaj yaz</a></div></div>`});
+    <div class="row"><button class="btn sm pri" data-act="custnew" data-k="${k}">+ Yeni satış</button><a class="btn sm wa" href="${waLink(x.c.phone,TPL.teslim(n))}" target="_blank" rel="noopener">${WA_ICON}Hal hatır sor</a><a class="btn sm" href="${waLink(x.c.phone,TPL.genel(n))}" target="_blank" rel="noopener">Mesaj yaz</a></div></div>`});
   return h+`</div>`;
 }
 function delBtn(key,act,attrs,label){
@@ -2316,7 +2490,7 @@ document.addEventListener('click',ev=>{
   if(a==='updsale'){const s=S.sales.find(x=>x.id===Q.editId);if(!s)return;Object.assign(s,snapshot(Q));delete s.cfgKeep;s.customer={...s.customer,name:Q.name,phone:Q.phone,plate:Q.plate};s.cfg.editId=undefined;const id2=s.id;Q=newQ();save();openSale=id2;toast(s.no+' güncellendi'+(s.signedSnap?'; imzalı sözleşme değişmedi':''));location.hash='panel';return}
   if(a==='del'){confirmDel=id;editSale=null;return render()}
   if(a==='delno'){confirmDel=null;return render()}
-  if(a==='delyes'){undoSales=JSON.stringify(S.sales);S.sales=S.sales.filter(x=>x.id!==id);confirmDel=null;impResult={msg:'Satış silindi.',undo:true};save();return render()}
+  if(a==='delyes'){undoSales=JSON.stringify(S.sales);{const o=S.sales.find(x=>x.id===id);if(o)trashPut('satis',o,o.customer.name+' ('+o.no+')')}S.sales=S.sales.filter(x=>x.id!==id);confirmDel=null;impResult={msg:'Satış silindi.',undo:true};save();return render()}
   if(a==='impdo_legacy'){const r=parseImport(impText);
     if(r.kind==='sign'){if(r.dup)return;const s=r.sale;s.sign={name:r.d.n,at:r.d.at,img:r.img,phone:r.d.ph};s.status=s.status==='teslim'?'teslim':'satildi';{const dt=new Date(r.d.at);s.dates.satildi=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0')}
       save();impOpen=false;impText='';pipeFilter=null;openSale=null;toast(s.no+' imzalandı olarak işlendi');render();savePdf(s.id);return}
@@ -2403,7 +2577,7 @@ document.addEventListener('click',ev=>{
     const title=f.kind==='hazirlama'?(f.qty||1)+' adet '+engName(f.eid)+' hazırla':f.kind==='git'?(place?place.name+(f.note?': '+f.note:''):f.note):f.note.trim();
     const m=createTask({kind:f.kind,to:f.to,title,eid:f.kind==='hazirlama'?f.eid:'',qty:f.kind==='hazirlama'?Math.max(1,f.qty||1):0,place,note:f.kind==='diger'?'':f.note.trim(),due:f.due});
     taskForm=null;save();toast('İş verildi: '+m.map(x=>uname(x.to)).join(', '));return render()}
-  if(a==='taskdel'){S.tasks=(S.tasks||[]).filter(x=>x.id!==id);askKey=null;save();toast('İş silindi');return render()}
+  if(a==='taskdel'){{const o=(S.tasks||[]).find(x=>x.id===id);if(o)trashPut('is',o,o.title)}S.tasks=(S.tasks||[]).filter(x=>x.id!==id);askKey=null;save();toast('İş silindi');return render()}
   if(a==='memadd'){const el=document.getElementById('mem-new'),v=el&&el.value.trim();if(!v)return;(S.aiMem=S.aiMem||[]).push({id:rid(),text:v.slice(0,300),t:new Date().toISOString(),by:CUR.name});save();toast('Hafızaya eklendi');return render()}
   if(a==='memdel'){S.aiMem=(S.aiMem||[]).filter(m=>m.id!==id);askKey=null;save();return render()}
   if(a==='remadd'){const tx=(document.getElementById('rem-txt')||{}).value||'',at=(document.getElementById('rem-at')||{}).value||'';const d=new Date(at);if(!tx.trim()||isNaN(d)){toast('Ne ve ne zaman yazın');return}if(d<new Date()){toast('Geçmiş bir zaman seçtiniz');return}
@@ -2413,7 +2587,7 @@ document.addEventListener('click',ev=>{
   if(a==='aiseg'){aiSeg=t.dataset.k;return render()}
   if(a==='aimic'){aiMicClick();return}
   if(a==='aisend'){const el=document.getElementById('ai-text'),v=el&&el.value.trim();if(v){el.value='';aiAsk(v)}return}
-  if(a==='aiok'){const p=(S.aiPending||[]).find(x=>x.id===id);if(p){try{aiRun(p);toast('Yapıldı')}catch(e){toast(e.message)}}return render()}
+  if(a==='aiok'){const p=(S.aiPending||[]).find(x=>x.id===id);if(p){try{toast(aiRun(p)==='__IKINCI__'?'Emin misiniz? Silmek için "Evet, sil"e dokunun':'Yapıldı')}catch(e){toast(e.message)}}return render()}
   if(a==='aiokall'){aiPend().forEach(p=>{try{aiRun(p)}catch(e){}});toast('Hepsi yapıldı');return render()}
   if(a==='ainok'){const p=(S.aiPending||[]).find(x=>x.id===id);if(p){p.status='iptal';p.doneAt=new Date().toISOString();save()}return render()}
   if(a==='pickeng'){Q.engineId=id;sentMsg=null;render();setTimeout(()=>{const el=document.querySelector('.edet');el&&el.scrollIntoView({block:'nearest',behavior:'smooth'})},0);return}
@@ -2429,11 +2603,25 @@ document.addEventListener('click',ev=>{
   if(a==='stokin'){const p=part(id),inp=document.getElementById('sin-'+id),n=Math.round(+(inp&&inp.value)||0);if(!n){toast('Adet yazın');inp&&inp.focus();return}p.stock=(+p.stock||0)+n;(S.stockLog=S.stockLog||[]).push({id:rid(),t:new Date().toISOString(),pid:id,d:n,ref:'Elle giriş',by:CUR.name});save();toast(p.name+': '+(n>0?'+':'')+n+' adet');return render()}
   if(a==='partedit'){partEdit=partEdit===id?null:id;return render()}
   if(a==='partadd'){const p={id:'p'+Date.now(),name:'Yeni parça',cost:0,sup:'',stock:0,min:0};S.parts.push(p);partEdit=p.id;save();return render()}
-  if(a==='partdel'){askKey=null;S.parts=S.parts.filter(p=>p.id!==id);S.engines.forEach(e=>e.recipe=(e.recipe||[]).filter(r=>r.pid!==id));partEdit=null;save();return render()}
+  if(a==='partdel'){askKey=null;{const o=S.parts.find(x=>x.id===id);if(o)trashPut('parca',o,o.name)}S.parts=S.parts.filter(p=>p.id!==id);S.engines.forEach(e=>e.recipe=(e.recipe||[]).filter(r=>r.pid!==id));partEdit=null;save();return render()}
   if(a==='supadd'){const x={id:'t'+Date.now(),name:'Yeni tedarikçi',phone:''};(S.suppliers=S.suppliers||[]).push(x);supEdit=x.id;stokSeg='tedarik';save();return render()}
   if(a==='supedit'){supEdit=supEdit===id?null:id;return render()}
-  if(a==='supdel'){askKey=null;S.suppliers=S.suppliers.filter(x=>x.id!==id);S.parts.forEach(p=>{if(p.sup===id)p.sup=''});supEdit=null;save();return render()}
+  if(a==='supdel'){askKey=null;{const o=(S.suppliers||[]).find(x=>x.id===id);if(o)trashPut('tedarikci',o,o.name)}S.suppliers=S.suppliers.filter(x=>x.id!==id);S.parts.forEach(p=>{if(p.sup===id)p.sup=''});supEdit=null;save();return render()}
   if(a==='suppay'){supPay=supPay===id?null:id;return render()}
+  if(a==='exnew'){exForm={typ:t.dataset.k};exPayKey=null;return render()}
+  if(a==='exedit'){const x=(S.expenses||[]).find(y=>y.id===id);if(x)exForm={typ:x.typ,id};return render()}
+  if(a==='excancel'){exForm=null;return render()}
+  if(a==='exsave'){const g=k=>(document.getElementById(k)||{}).value||'';const amt=Math.round(+g('ex-amt')||0);if(!(amt>0)){toast('Tutar yazın');return}
+    const cat=g('ex-cat'),uid=g('ex-uid');if((cat==='maas'||cat==='avans'||cat==='prim')&&!uid){toast('Kişiyi seçin');return}
+    const d={cat,uid,title:g('ex-title').trim(),amt};if(exForm.typ==='sabit')d.day=Math.min(31,Math.max(1,Math.round(+g('ex-day')||1)));else{d.date=g('ex-date')||today();d.m=g('ex-m')||'Nakit'}
+    exSave(exForm.id,exForm.typ,d);exForm=null;save();toast('Kaydedildi');return render()}
+  if(a==='exdel'){askKey=null;exDel(id);exForm=null;save();toast('Silindi; Asistan > İşlem geçmişi > Silinenler\'den geri alınabilir');return render()}
+  if(a==='expay'){exPayKey=exPayKey===t.dataset.k?null:t.dataset.k;return render()}
+  if(a==='expaycancel'){exPayKey=null;return render()}
+  if(a==='expaysave'){const [tid,per]=String(exPayKey||'').split('|'),tp=(S.expenses||[]).find(y=>y.id===tid),g=k=>(document.getElementById(k)||{}).value||'',amt=Math.round(+g('exp-amt')||0);if(!tp||!(amt>0)){toast('Tutar yazın');return}
+    exPayTpl(tp,per,amt,g('exp-m')||'Nakit',g('exp-date')||today());exPayKey=null;save();toast('Ödeme kaydedildi');return render()}
+  if(a==='exsup'){panelTab='stok';stokSeg='tedarik';return render()}
+  if(a==='trashundo'){try{toast(trashRestore(id)+' geri alındı')}catch(e){toast(e.message)}save();return render()}
   if(a==='suppaysave'){const n=Math.round(+(document.getElementById('spa-'+id)||{}).value||0);if(!(n>0)){toast('Tutar yazın');return}(S.supPays=S.supPays||[]).push({id:rid(),sup:id,amt:n,date:today(),m:(document.getElementById('spm-'+id)||{}).value,by:CUR.name});supPay=null;save();toast(supName(id)+' ödemesi kaydedildi');return render()}
   if(a==='poopen'){poSup=id;poView=null;poRecv=null;poDraft={};const oq=+S.settings.orderQty||20;S.parts.filter(p=>p.sup===id&&(+p.stock||0)<=(+p.min||0)).forEach(p=>poDraft[p.id]=oq);panelTab='stok';stokSeg='siparis';location.hash='panel';window.scrollTo(0,0);return render()}
   if(a==='pocancel'){poSup=null;poDraft={};return render()}
@@ -2453,7 +2641,7 @@ document.addEventListener('click',ev=>{
   if(a==='essave'){const g=k=>(document.getElementById(k)||{}).value||'',shop=g('es-shop').trim(),ph=g('es-phone').trim();if(!shop||ph.replace(/\D/g,'').length<10){toast('Dükkân adı ve telefon gerekli');return}
     let e=esEdit==='new'?null:(S.esnaf||[]).find(x=>x.id===esEdit);if(!e){e={id:'n'+Date.now()};(S.esnaf=S.esnaf||[]).push(e)}Object.assign(e,{shop,name:g('es-name').trim(),phone:ph,addr:g('es-addr').trim()});
     const kc=document.getElementById('es-kvkk');if(kc&&kc.checked&&!e.kvkk)e.kvkk={at:new Date().toISOString(),by:CUR.name};esEdit=null;save();toast('Esnaf kaydedildi');return render()}
-  if(a==='esdel'){askKey=null;S.esnaf=S.esnaf.filter(x=>x.id!==id);esEdit=null;save();return render()}
+  if(a==='esdel'){askKey=null;{const o=(S.esnaf||[]).find(x=>x.id===id);if(o)trashPut('esnaf',o,o.shop)}S.esnaf=S.esnaf.filter(x=>x.id!==id);esEdit=null;save();return render()}
   if(a==='estoggle'){esOpen=esOpen===id?null:id;return render()}
   if(a==='esorder'){esOrder=esOrder===id?null:id;esForm={engineId:(S.engines[0]||{}).id,qty:1,core:'getirdi'};esPay=null;return render()}
   if(a==='esordercancel'){esOrder=null;return render()}
@@ -2481,7 +2669,7 @@ document.addEventListener('click',ev=>{
   if(a==='pinreset'){const u=S.users.find(x=>x.id===id);u.pin=String(Math.floor(100000+Math.random()*900000));u.pinSent=false;save();toast('Yeni şifre oluşturuldu. Kişiye gönderin.');return render()}
   if(a==='pinhide'){const u=S.users.find(x=>x.id===id);u.pinSent=true;save();return render()}
   if(a==='adduser'){S.users.push({id:'u'+Date.now(),name:'Yeni çalışan',role:'calisan',task:'hazirlama',phone:'',pin:String(Math.floor(100000+Math.random()*900000)),pinSent:false,discount:false});save();return render()}
-  if(a==='deluser'){askKey=null;S.users=S.users.filter(u=>u.id!==id);const r=S.settings.rules||{};Object.keys(r).forEach(k=>r[k]=(r[k]||[]).filter(x=>x!==id));save();return render()}
+  if(a==='deluser'){askKey=null;{const o=S.users.find(x=>x.id===id);if(o)trashPut('calisan',o,o.name)}S.users=S.users.filter(u=>u.id!==id);const r=S.settings.rules||{};Object.keys(r).forEach(k=>r[k]=(r[k]||[]).filter(x=>x!==id));save();return render()}
   if(a==='newsale'){Q=newQ();sentMsg=null;location.hash='teklif';window.scrollTo(0,0);return}
   if(a==='saveq'||a==='savesign'||a==='savewa'){Promise.resolve(saveSale()).then(s=>{if(!s)return;const nm=s.customer.name;Q=newQ();
     if(a==='savesign'){S.active=s.id;location.hash='sozlesme';window.scrollTo(0,0);toast('Kaydedildi. Müşteriye imzalatın.');return}
@@ -2518,7 +2706,7 @@ document.addEventListener('click',ev=>{
   if(a==='addeng'){const e={id:'e'+Date.now(),name:'Yeni motor',code:'',price:0,laborC:+S.labor.c||0,desc:'',photos:[],recipe:[]};S.engines.push(e);openEng=e.id;save();return render()}
   if(a==='ask'){askKey=t.dataset.k;return render()}
   if(a==='askno'){askKey=null;return render()}
-  if(a==='deleng'){askKey=null;const e=S.engines.splice(+t.dataset.i,1)[0];if(Q.engineId===e.id)Q=newQ();save();return render()}
+  if(a==='deleng'){askKey=null;const e=S.engines.splice(+t.dataset.i,1)[0];if(e)trashPut('motor',e,e.name);if(Q.engineId===e.id)Q=newQ();save();return render()}
   if(a==='addopt'){const p=S.parts[+t.dataset.pi];p.opts.push({t:'normal',b:'Yeni marka',p:0,c:0});openPart=p.id;save();return render()}
   if(a==='delopt'){askKey=null;const p=S.parts[+t.dataset.pi];p.opts.splice(+t.dataset.oi,1);openPart=p.id;resyncQ();save();return render()}
   if(a==='addpart'){const p={id:'p'+Date.now(),name:'Yeni parça',req:true,opts:[{t:'uygun',b:'Muadil',p:0,c:0},{t:'normal',b:'',p:0,c:0},{t:'kaliteli',b:'',p:0,c:0}]};S.parts.push(p);openPart=p.id;resyncQ();save();return render()}

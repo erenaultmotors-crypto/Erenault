@@ -21,8 +21,8 @@
 
 var TZ = 'Europe/Istanbul';
 var CORE = { getirdi: 1, sonra: 1, yok: 1 };
-var COLLS = ['pos', 'supPays', 'stockLog', 'esnaf', 'units', 'prepOrders', 'unitLog', 'aiPending', 'aiLog', 'tasks', 'aiMem', 'reminders'];
-var OWNER_ONLY = ['supPays', 'aiPending', 'aiLog', 'aiMem', 'reminders'];
+var COLLS = ['pos', 'supPays', 'stockLog', 'esnaf', 'units', 'prepOrders', 'unitLog', 'aiPending', 'aiLog', 'tasks', 'aiMem', 'reminders', 'expenses', 'trash'];
+var OWNER_ONLY = ['supPays', 'aiPending', 'aiLog', 'aiMem', 'reminders', 'expenses', 'trash'];
 var TASK_W = ['status', 'hist', 'photo', 'wSeen', 'seenAt', 'doneAt', 'pSeen', 'doneQty', 'unitsAdded'];
 var KCOLS = ['Tür', 'Zaman', 'Özet', 'id', 'veri (dokunmayın)'];
 
@@ -790,6 +790,8 @@ function storeSummary(c, r) {
   if (c === 'supPays') return (sup[r.sup] || '') + ' · ' + money(r.amt);
   if (c === 'aiLog') return r.title || '';
   if (c === 'aiMem') return r.text || '';
+  if (c === 'expenses') return (r.typ === 'sabit' ? 'Her ay ' + (r.day || 1) + '. gün · ' : (r.date || '') + ' · ') + (r.cat || '') + ' · ' + (r.title || '') + ' · ' + (r.amt || 0) + ' TL';
+  if (c === 'trash') return (r.T || '') + ' · ' + (r.title || '');
   if (c === 'reminders') return (r.done ? '✓ ' : '') + (r.at || '') + ' · ' + (r.text || '');
   if (c === 'tasks') { var us = {}; getUsers().forEach(function (x) { us[x.id] = x.name; }); return (us[r.to] || '') + ' · ' + (r.title || '') + ' · ' + (JOBS_ST[r.status] || r.status); }
   if (c === 'aiPending') return (r.status || '') + ' · ' + (r.title || '');
@@ -1082,7 +1084,11 @@ function durumOzeti() {
     alacaklar: alacak.slice(0, 15), onay_bekleyen_siparis: pos.filter(function (p) { return p.status === 'onay'; }).length,
     gonderilmemis_siparis: pos.filter(function (p) { return p.status === 'gonderildi' && !p.sentAt; }).length,
     hatirlatmalar_bugun: st.list('reminders').filter(function (r) { return !r.done && String(r.at).slice(0, 10) === t; }).map(function (r) { return r.text; }),
-    notlar: st.list('aiMem').map(function (m) { return m.text; })
+    notlar: st.list('aiMem').map(function (m) { return m.text; }),
+    bugun_odenecekler: (function () { var ex = st.list('expenses'), per = t.slice(0, 7), d = Number(t.slice(8, 10)), last = new Date(Number(t.slice(0, 4)), Number(t.slice(5, 7)), 0).getDate();
+      return ex.filter(function (x) { return x.typ === 'sabit' && Math.min(Number(x.day) || 1, last) <= d; }).map(function (x) {
+        var paid = ex.filter(function (p) { return p.typ === 'odeme' && p.tpl === x.id && p.per === per; }).reduce(function (a, p) { return a + (Number(p.amt) || 0); }, 0);
+        return { ne: (x.cat === 'maas' ? 'Maaş ' + (names[x.uid] || '') : (x.title || x.cat)), kalan: (Number(x.amt) || 0) - paid, gun: x.day }; }).filter(function (x) { return x.kalan > 0; }); })()
   };
 }
 
