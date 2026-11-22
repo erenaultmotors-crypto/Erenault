@@ -396,6 +396,10 @@ body.worker nav.tabbar{grid-template-columns:repeat(3,1fr)}body.worker nav.tabba
 .citem .tx span{font-size:13.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .citem .rt{display:flex;flex-direction:column;align-items:flex-end;gap:4px;font-size:12px;color:var(--muted)}
 .citem .rt .nbadge{position:static}
+.fktop{position:sticky;top:env(safe-area-inset-top,0px);z-index:14;background:var(--bg);padding-top:8px;margin-top:-8px;display:flex;flex-direction:column}
+.fkselbtns{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:8px}.fktop .fkselbar{position:static;gap:8px;padding:10px 12px;box-shadow:0 6px 14px rgba(0,0,0,.10)}
+.fktop .fkquick{margin-bottom:8px}.fktop.sel .chead .tx>.small{display:none}.fktop.sel .chead{padding-bottom:6px;margin-bottom:6px}.fkdesc summary{cursor:pointer;color:var(--accent-ink,var(--fg));font-weight:600;padding:2px 0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .chead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:10px}
 .chead .tx{flex:1;min-width:0;display:flex;flex-direction:column}
 .chead .tx b{font-family:var(--display);font-size:22px}
@@ -546,6 +550,10 @@ body.inchat .aifab,body.ulogin .aifab{display:none}
 .pclist{display:flex;flex-direction:column;gap:2px;background:var(--panel);border-radius:10px;padding:4px 8px}
 .pcrow{display:grid;grid-template-columns:26px 1fr 70px;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);cursor:pointer}.pcrow:last-child{border-bottom:0}
 .pcrow input[type=checkbox]{width:22px;height:22px}.pcrow input[type=number]{width:70px;padding:6px 8px}.pcrow input:disabled{opacity:.4}
+.klist{display:flex;flex-direction:column;gap:12px}
+.kcard{border:1px solid var(--line);border-radius:16px;padding:14px;background:var(--panel);display:flex;flex-direction:column;gap:12px}
+.khead{display:flex;gap:12px;align-items:flex-start}.kpin{font-size:24px;line-height:1}.ktx{display:flex;flex-direction:column;gap:2px;min-width:0}.ktx b{font-size:17px}.ktx>span{color:var(--muted);overflow-wrap:anywhere}
+.ksend{border-top:1px dashed var(--line);padding-top:12px;display:flex;flex-direction:column;gap:10px}
 .shban{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;background:var(--accent-soft);border:1px solid var(--accent);border-radius:16px;padding:14px;margin:0 0 14px}
 .shban>div:first-child{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1 1 220px}.shban span{font-size:14px;color:var(--fg)}
 .fkquick{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}
@@ -827,6 +835,10 @@ async function pull(force){if(!CUR||syncing||syncTimer||pulling)return;pulling=t
 function resetData(){STOCK={};CL.forEach(n=>S[n]=[]);base={sales:{},msgs:{},pings:{},users:{},cat:null,pinned:null,c:{}};since=0;S.sales=[];S.msgs=[];S.pings=[];S.pinned=null;PINPUSHED={}}
 function logoutHard(msg){try{localStorage.removeItem('eo-auth')}catch(e){}const us=S.users.map(u=>({id:u.id,name:u.name,role:u.role}));AUTHU=null;AUTHP='';resetData();S.users=us;setUser(null);msgConv=null;loginSel=null;render();if(msg)toast(msg)}
 let loginBusy=false;
+let __backInit=false;
+// Telefonun geri tuşu: önce uygulamanın içinde bir adım geri gider, Ana menüdeyse uygulamayı arka plana alır
+function backHook(){const CP=window.Capacitor&&window.Capacitor.Plugins,App=CP&&CP.App;if(!App||__backInit)return;__backInit=true;
+  App.addListener('backButton',e=>{try{if(eoBack())return}catch(x){}if(App.minimizeApp)App.minimizeApp();else if(e&&e.canGoBack)history.back();else App.exitApp()})}
 let __linkInit=false;
 function appOpenHook(){if(ROLE!=='owner')return;const CP=window.Capacitor&&window.Capacitor.Plugins,App=CP&&CP.App;const go=u=>{if(String(u||'').includes('asistan'))aiAutoOpen(true)};
   if(App&&!__linkInit){__linkInit=true;App.addListener('appUrlOpen',e=>go(e.url));
@@ -848,7 +860,7 @@ async function doLogin(uid,pin,silent){
   try{const r=await api('apiLogin',{u:uid,p:pin});AUTHU=uid;AUTHP=pin;storeAuth();INFO={sheetUrl:r.sheetUrl,folderUrl:r.folderUrl,email:r.email};
     resetData();ROLE=r.role;CUR={id:uid};applyPull(r);since=r.now-60000;lastPull=Date.now();
     const me=S.users.find(u=>u.id===uid);setUser(me);loginSel=null;loginBusy=false;Q=newQ();panelTab='home';pipeFilter='geldi';
-    location.hash=ROLE==='worker'?'isler':'panel';render();setTimeout(pushSetup,1500);setTimeout(appOpenHook,700);if(!silent)toast('Hoş geldiniz, '+me.name);if(ROLE==='owner'&&base.cat===null)save()}
+    location.hash=ROLE==='worker'?'isler':'panel';render();setTimeout(pushSetup,1500);setTimeout(appOpenHook,700);setTimeout(backHook,600);if(!silent)toast('Hoş geldiniz, '+me.name);if(ROLE==='owner'&&base.cat===null)save()}
   catch(e){loginBusy=false;CUR=null;try{localStorage.removeItem('eo-auth')}catch(x){}loginErr2=errMsg(e);render()}
 }
 
@@ -1791,7 +1803,7 @@ function renderFolders(){
       h+=`<button class="fkcard" data-act="fkopen" data-id="${f.id}"><span class="fkcov">${cov?`<img data-m="${esc(cov.ref)}" alt="">`:`<span class="fkico">📁</span>`}</span><span class="fktx"><b>${esc(f.name)}</b><span>${ph.length} fotoğraf · ${vd.length} video · ${nt.length} not</span>${e?`<span class="fkeng">${esc(e.name)}</span>`:''}<span class="small muted">${last?'Son ekleme '+mtime(last.t):'Henüz boş'}</span></span></button>`});
     app.innerHTML=h+`</div>`;return}
   const f=F.find(x=>x.id===fkOpen),I=fkItems(f.id),e=fkEng(f),med=I.filter(x=>x.kind!=='note');
-  let h=`<div class="chead"><button class="btn sm" data-act="fkback" aria-label="Geri">‹ Geri</button><span class="av g">📁</span><span class="tx"><b>${esc(f.name)}</b><span class="small muted">${med.filter(x=>x.kind==='photo').length} fotoğraf · ${med.filter(x=>x.kind==='video').length} video · ${I.length-med.length} not${e?' · '+esc(e.name):''}</span></span>
+  let h=`<div class="fktop${fkSel?" sel":""}"><div class="chead"><span class="av g">📁</span><span class="tx"><b>${esc(f.name)}</b><span class="small muted">${med.filter(x=>x.kind==='photo').length} fotoğraf · ${med.filter(x=>x.kind==='video').length} video · ${I.length-med.length} not${e?' · '+esc(e.name):''}</span></span>
     <button class="btn sm" data-act="fkmenu" aria-expanded="${fkMenu}">${fkMenu?'Kapat':'⋯ Seçenekler'}</button></div>`;
   if(fkMenu)h+=`<div class="fkmenu">${med.length?`<button data-act="fkselon">☑ Seç: paylaş veya indir</button>`:''}<button data-act="fkpdf">📄 Notları PDF indir</button><button data-act="fktxt">📝 Notları TXT indir</button>${med.length?`<button data-act="fkzip">⬇ Fotoğraf ve videoları indir (ZIP)</button>`:''}<button data-act="fkedit">✏️ Adı / bağlı motoru değiştir</button>${ROLE==='owner'?(fkDelAsk==='folder'?`<span class="confirm"><span>Klasör ve içindekiler silinsin mi? (Silinenler'den geri alınabilir)</span><span class="row"><button class="btn sm dangerfill" data-act="fkdelfolder">Evet, sil</button><button class="btn sm" data-act="fkdelno">Vazgeç</button></span></span>`:`<button data-act="fkdelask" data-k="folder" class="danger">🗑 Klasörü sil</button>`):''}</div>`;
   if(fkForm&&fkForm.id===f.id)h+=fkFormHtml();
@@ -1799,10 +1811,10 @@ function renderFolders(){
   h+=`<div class="note" id="fkbusy" ${fkBusy?'':'hidden'}>${esc(fkBusy)}</div>`;
   if(fkSel){const S2=med.filter(x=>fkSel.has(x.id));
     h+=`<div class="fkselbar"><div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><b>${S2.length} dosya seçildi</b><span class="row"><button class="btn sm" data-act="fkselall">${S2.length===med.length?'Seçimi temizle':'Tümünü seç'}</button><button class="btn sm" data-act="fkseloff">İptal</button></span></div>
-      <label class="f"><span>Mesaja eklenecek açıklama (isteğe bağlı)</span><textarea id="fk-sharetxt" rows="2" placeholder="Örn. ${esc(f.name)} çalıştırma testi">${esc(fkShareTxt)}</textarea></label>
-      <div class="row" style="flex-wrap:wrap"><button class="btn wa" data-act="fkshare" ${S2.length?'':'disabled'}>${WA_ICON}Paylaş / Gönder</button><button class="btn" data-act="fkselnotes">Notları açıklamaya ekle</button><button class="btn" data-act="fkseldl" ${S2.length?'':'disabled'}>⬇ İndir</button>${ROLE==='owner'?`<button class="btn" data-act="fkselweb" ${S2.length?'':'disabled'}>🌐 Web'de yayınla</button>`:''}</div>
+      <details class="fkdesc" ${fkShareTxt?'open':''}><summary class="small">✏️ Mesaja açıklama ekle (isteğe bağlı)</summary><label class="f"><span class="sr">Açıklama</span><textarea id="fk-sharetxt" rows="2" placeholder="Örn. ${esc(f.name)} çalıştırma testi">${esc(fkShareTxt)}</textarea></label><button class="btn sm" data-act="fkselnotes" style="margin-top:6px">Notları açıklamaya ekle</button></details>
+      <div class="fkselbtns"><button class="btn sm wa" data-act="fkshare" ${S2.length?'':'disabled'}>${WA_ICON}Paylaş</button><button class="btn sm" data-act="fkseldl" ${S2.length?'':'disabled'}>⬇ İndir</button>${ROLE==='owner'?`<button class="btn sm" data-act="fkselweb" ${S2.length?'':'disabled'}>🌐 Web'de</button>`:''}</div>
       ${fkShareFail?`<div class="note">Bu cihazda paylaşım menüsü açılamadı. Dosyaları "İndir" ile kaydedip WhatsApp'tan ekleyebilirsiniz; açıklamayı <a href="https://wa.me/?text=${encodeURIComponent(fkShareTxt||'')}" target="_blank" rel="noopener">WhatsApp'ta açabilirsiniz</a>. Uygulamanın telefona kurulan sürümünde (APK) paylaşım menüsü doğrudan açılır.</div>`:''}</div>`}
-  h+=`<div class="thread fkthread">`;let lastDay='';
+  h+=`</div><div class="thread fkthread">`;let lastDay='';
   if(!I.length)h+=`<div class="empty">Bu klasör boş. Alttaki kutudan fotoğraf, video veya not ekleyin.</div>`;
   I.forEach(it=>{const d=locDay(it.t);if(d!==lastDay){h+=`<span class="dsep">${d===today()?'Bugün':fdate(d)}</span>`;lastDay=d}const me=it.by===CUR.id;
     const acts=(it.kind!=='note'?`<button class="mact" data-act="fkdl1" data-id="${it.id}">⬇ İndir</button>`:'')+fkWebChip(it)+(fkCanDel(it)?(fkDelAsk===it.id?`<button class="mact" style="color:var(--bad);font-weight:700" data-act="fkdelitem" data-id="${it.id}">Evet, sil</button><button class="mact" data-act="fkdelno">Vazgeç</button>`:`<button class="mact" data-act="fkdelask" data-k="${it.id}">🗑 Sil</button>`):'');
@@ -2434,6 +2446,39 @@ let msgMenu=false,msgLoc=null,msgDoc=null,msgAudio=null,msgLocPick=false,rec=nul
 const MIC_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/></svg>';
 const SEND_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>';
 function places(){return S.settings.places||[]}
+// Telefonun geri tuşu: en içteki ekranı kapatır; Ana menüdeyse false döner (uygulama küçülür)
+function eoBack(){
+  if(typeof fkView!=='undefined'&&fkView){fkView=null;render();return true}
+  if(typeof fkSel!=='undefined'&&fkSel){fkSel=null;render();return true}
+  if(view()==='klasor'&&typeof fkOpen!=='undefined'&&fkOpen){fkOpen=null;fkMenu=false;fkForm=null;render();window.scrollTo(0,0);return true}
+  if(view()==='panel'&&panelTab&&panelTab!=='home'){panelTab='home';konumSend=null;render();window.scrollTo(0,0);return true}
+  if(view()!=='panel'&&CUR&&MODE==='app'){location.hash='panel';return true}
+  return false}
+// tarayıcının / telefonun geri tuşu klasörden çıkar
+let __fkPushed=false;
+{const _rnd=render;render=function(){try{if(view()==='klasor'&&typeof fkOpen!=='undefined'&&fkOpen){if(!__fkPushed){__fkPushed=true;history.pushState({eo:'fk'},'')}}else __fkPushed=false}catch(e){}return _rnd.apply(this,arguments)}}
+window.addEventListener('popstate',()=>{if(view()==='klasor'&&typeof fkOpen!=='undefined'&&fkOpen){fkView=null;fkSel=null;fkOpen=null;fkMenu=false;fkForm=null;render();window.scrollTo(0,0)}});
+document.addEventListener('click',ev=>{const a=ev.target.closest&&ev.target.closest('nav.tabbar a');if(!a)return;
+  if(a.dataset.v==='klasor'&&view()==='klasor'&&typeof fkOpen!=='undefined'&&fkOpen){ev.preventDefault();fkOpen=null;fkSel=null;fkMenu=false;fkForm=null;render();window.scrollTo(0,0)}
+  else if(a.dataset.v==='panel'&&view()==='panel'&&panelTab!=='home'){ev.preventDefault();panelTab='home';render();window.scrollTo(0,0)}},true);
+// ---- Konumlar ----
+let konumSend=null,konumEdit=null;
+function konumMsg(p){return `Eren Oto Motor · ${p.name}\n${p.addr?p.addr+'\n':''}${mapUrl(p)}`}
+function konumPhones(){const M=new Map();S.sales.forEach(s=>{const ph=String(s.customer&&s.customer.phone||'').replace(/\D/g,'');if(ph.length>=10&&!M.has(ph))M.set(ph,s.customer.name)});(S.esnaf||[]).forEach(e=>{const ph=String(e.phone||'').replace(/\D/g,'');if(ph.length>=10&&!M.has(ph))M.set(ph,e.shop+' (esnaf)')});return [...M].slice(0,300)}
+function pKonum(){const L=places(),own=ROLE==='owner';
+  let h=`<div class="section"><h2>Konumlar</h2><p class="muted" style="margin:0;max-width:62ch">Kayıtlı adreslerimiz. "WhatsApp'tan gönder" ile müşteriye konumu harita bağlantısıyla gönderin.${own?' Adresleri ve harita bağlantılarını buradan düzenleyebilirsiniz.':''}</p></div><div class="section"><div class="klist">`;
+  if(!L.length)h+='<div class="empty">Kayıtlı konum yok.</div>';
+  L.forEach(p=>{const ed=own&&konumEdit===p.id,ok=!!(p.addr||p.url||p.lat!=null);
+    h+=`<div class="kcard"><div class="khead"><span class="kpin">📍</span><span class="ktx"><b>${esc(p.name)}</b><span>${p.addr?esc(p.addr):'<span style="color:var(--bad)">Adres girilmedi</span>'}</span></span></div>`;
+    if(ed)h+=`<div class="form2"><label class="f"><span>Ad</span><input type="text" data-pl="name" data-id="${p.id}" value="${esc(p.name)}"></label><label class="f"><span>Açık adres</span><input type="text" data-pl="addr" data-id="${p.id}" value="${esc(p.addr||'')}" placeholder="Mahalle, cadde, no, Arnavutköy/İstanbul"></label><label class="f"><span>Google Haritalar bağlantısı (isteğe bağlı)</span><input type="text" data-pl="url" data-id="${p.id}" value="${esc(p.url||'')}" placeholder="https://maps.app.goo.gl/..."></label></div>
+      <p class="small muted" style="margin:0">Harita bağlantısı için: Google Haritalar'da yeri açın → Paylaş → Bağlantıyı kopyala, buraya yapıştırın. Boş bırakılırsa adresle arama bağlantısı gönderilir.</p>
+      <div class="row"><button class="btn pri" data-act="kdone">Tamam</button>${delBtn('pl'+p.id,'pldel',`data-id="${p.id}"`,'Konumu sil')}</div>`;
+    else h+=`<div class="row" style="flex-wrap:wrap"><button class="btn wa" data-act="ksend" data-id="${p.id}" ${ok?'':'disabled'}>${WA_ICON}WhatsApp'tan gönder</button>${ok?`<a class="btn" href="${esc(mapUrl(p))}" target="_blank" rel="noopener">🗺 Haritada aç</a>`:''}<button class="btn" data-act="copytxt" data-t="${esc(konumMsg(p))}" ${ok?'':'disabled'}>Kopyala</button>${own?`<button class="btn sm" data-act="kedit" data-id="${p.id}">✏️ Düzenle</button>`:''}</div>`;
+    if(konumSend===p.id&&!ed){const P=konumPhones();h+=`<div class="ksend"><label class="f"><span>Kime? Telefon numarası yazın veya listeden seçin</span><input type="tel" id="k-phone" list="k-phones" inputmode="tel" placeholder="05xx xxx xx xx" autocomplete="off"></label><datalist id="k-phones">${P.map(([ph,n])=>`<option value="${ph}">${esc(n)}</option>`).join('')}</datalist>
+      <div class="row" style="flex-wrap:wrap"><button class="btn wa" data-act="kgo" data-id="${p.id}">${WA_ICON}Gönder</button><a class="btn" href="https://wa.me/?text=${encodeURIComponent(konumMsg(p))}" target="_blank" rel="noopener">Kişiyi WhatsApp'ta seç</a><button class="btn sm" data-act="ksendx">Vazgeç</button></div></div>`}
+    h+=`</div>`});
+  h+=`</div>${own?`<div class="row" style="margin-top:12px"><button class="btn" data-act="kadd">+ Konum ekle</button></div>`:''}</div>`;
+  return h}
 function mapUrl(p){return p.url||(p.lat!=null?`https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`:`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.addr||p.name||'')}`)}
 function dirUrl(p){return `https://www.google.com/maps/dir/?api=1&destination=${p.lat!=null?p.lat+','+p.lng:encodeURIComponent(p.addr||p.name||'')}`}
 function locCard(l){return `<div class="mcard"><b>📍 ${esc(l.name||'Konum')}</b>${l.addr?`<span>${esc(l.addr)}</span>`:''}${l.acc?`<span class="small muted">Hassasiyet ±${Math.round(l.acc)} m</span>`:''}<div class="row"><a class="btn sm" href="${mapUrl(l)}" target="_blank" rel="noopener">Haritada aç</a><a class="btn sm" href="${dirUrl(l)}" target="_blank" rel="noopener">🧭 Yol tarifi</a></div></div>`}
@@ -2753,17 +2798,18 @@ function pStaff(){
   return h+`</div>`;
 }
 function renderPanel(){
-  const tabs=ROLE==='owner'?[['asistan','Asistan'],['satislar','Satışlar'],['isler','İş paylaşımı'],['esnaf','Esnaflar'],['stok','Stok ve tedarik'],['muhasebe','Kasa ve kâr'],['musteriler','Müşteriler'],['fiyatlar','Motorlar ve fiyatlar'],['web','Web Sitesi']]:[['satislar','Satışlar'],['esnaf','Esnaflar'],['stok','Stok ve sipariş'],['musteriler','Müşteriler']];
+  const tabs=ROLE==='owner'?[['asistan','Asistan'],['satislar','Satışlar'],['isler','İş paylaşımı'],['esnaf','Esnaflar'],['stok','Stok ve tedarik'],['muhasebe','Kasa ve kâr'],['musteriler','Müşteriler'],['fiyatlar','Motorlar ve fiyatlar'],['web','Web Sitesi'],['konum','Konumlar']]:[['satislar','Satışlar'],['esnaf','Esnaflar'],['stok','Stok ve sipariş'],['musteriler','Müşteriler'],['konum','Konumlar']];
   if(ROLE!=='owner'&&(panelTab==='web'||panelTab==='muhasebe'||panelTab==='fiyatlar'||panelTab==='isler'||panelTab==='asistan'||(ROLE==='worker'&&panelTab==='stok')))panelTab='home';
   if(!panelTab||panelTab==='home'){app.innerHTML=pHome(tabs);return}
   const cur=tabs.find(t=>t[0]===panelTab)||[panelTab,panelTab==='bildirim'?'Bildirimler':''];
   let h=`<div class="sechead"><button class="btn sm" data-tab="home" aria-label="Ana menüye dön">‹ Ana menü</button><span class="ti">${TAB_IC[panelTab]||''}</span><b>${esc(cur[1])}</b></div>`;
-  h+=panelTab==='bildirim'?pNotif():panelTab==='asistan'?pAsistan():panelTab==='isler'?pWork():panelTab==='stok'?pStock():panelTab==='esnaf'?pEsnaf():panelTab==='satislar'?pSales():panelTab==='muhasebe'?pAcc():panelTab==='musteriler'?pCust():panelTab==='web'?pWeb():pPrices();
+  h+=panelTab==='bildirim'?pNotif():panelTab==='asistan'?pAsistan():panelTab==='isler'?pWork():panelTab==='stok'?pStock():panelTab==='esnaf'?pEsnaf():panelTab==='satislar'?pSales():panelTab==='muhasebe'?pAcc():panelTab==='musteriler'?pCust():panelTab==='web'?pWeb():panelTab==='konum'?pKonum():pPrices();
   app.innerHTML=h;
   {const hb=app.querySelector('.sechead b'),h2=app.querySelector('.sechead~* h2,.sechead~h2');if(hb&&h2&&h2.textContent.trim()===hb.textContent.trim())h2.hidden=true}
 }
 const TAB_SH={web:'Site',satislar:'Satışlar',isler:'İşler',esnaf:'Esnaf',stok:'Stok',muhasebe:'Kasa',musteriler:'Müşteri',fiyatlar:'Motorlar'};
 const TAB_IC=(()=>{const w=d=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;return{asistan:w('<path d="M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/>'),
+  konum:w('<path d="M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/>'),
   satislar:w('<path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>'),
   isler:w('<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9z"/>'),
   muhasebe:w('<rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20M16 15h2M6 6V4h12v2"/>'),
@@ -2781,9 +2827,10 @@ function pHome(tabs){const own=ROLE==='owner',t0=today();
     musteriler:()=>[0,'Müşteri listesi ve geçmişi'],
     fiyatlar:()=>[0,S.engines.length+' motor · parçalar ve fiyatlar'],
     web:()=>{const d=webDirty();return[d?'!':0,d?'Yayın bekleyen değişiklik var':'Site güncel']},
+    konum:()=>{const L=places(),m=L.filter(p=>!(p.addr||p.url)).length;return[0,m?m+' konumun adresi girilmedi':L.map(p=>p.name).join(', ')||'Dükkan, ofis, depo']},
     asistan:()=>{const p=(S.aiPending||[]).filter(x=>x.status==='bekliyor').length;return[p,p?p+' işlem onay bekliyor':'Konuşarak iş yaptırın']}};
   const tile=([k,l])=>{let b=0,line='';try{[b,line]=(I[k]||(()=>[0,'']))()}catch(e){}return `<button class="htile" data-tab="${k}"><span class="hic">${TAB_IC[k]||''}</span><span class="htx"><b>${esc(l)}</b><span>${esc(line)}</span></span>${b?`<span class="hbdg">${b}</span>`:''}</button>`};
-  const G=own?[['Her gün',['satislar','isler','esnaf','stok']],['Para ve kayıtlar',['muhasebe','musteriler','fiyatlar']],['Diğer',['web','asistan']]]:[['',tabs.map(t=>t[0])]];
+  const G=own?[['Her gün',['satislar','isler','esnaf','stok']],['Para ve kayıtlar',['muhasebe','musteriler','fiyatlar']],['Diğer',['konum','web','asistan']]]:[['',tabs.map(t=>t[0])]];
   const hr=new Date().getHours(),gr=hr<11?'Günaydın':hr<18?'İyi günler':'İyi akşamlar';
   let h=shBanner()+`<div class="hhello"><h2>${gr}, ${esc((CUR&&CUR.name)||'')}</h2><span class="muted">${new Date().toLocaleDateString('tr-TR',{weekday:'long',day:'numeric',month:'long'})}</span></div>`;
   G.forEach(([g,ks])=>{const T=ks.map(k=>tabs.find(t=>t[0]===k)).filter(Boolean);if(!T.length)return;h+=`${g?`<div class="hgroup">${g}</div>`:''}<div class="hgrid">${T.map(tile).join('')}</div>`});
@@ -3147,6 +3194,13 @@ document.addEventListener('click',ev=>{
   if(a==='pcancel'){partsEdit=null;return render()}
   if(a==='pall'||a==='pnone'){const b=document.getElementById('pedit-'+id);if(b)b.querySelectorAll('input[data-pc]').forEach(c=>{c.checked=a==='pall';const q=b.querySelector(`input[data-pq="${c.dataset.pc}"]`);if(q)q.disabled=!c.checked});return}
   if(a==='psave'){const s=S.sales.find(x=>x.id===id);if(!s||!canPickParts(s))return;const n=partsSave(s);partsEdit=null;save();toast(n?n+' değiştirilen parça kaydedildi':'Değiştirilen parça yok olarak kaydedildi');return render()}
+  if(a==='ksend'){konumSend=konumSend===id?null:id;render();setTimeout(()=>{const i=document.getElementById('k-phone');if(i)i.focus()},50);return}
+  if(a==='ksendx'){konumSend=null;return render()}
+  if(a==='kedit'){konumEdit=id;konumSend=null;return render()}
+  if(a==='kdone'){konumEdit=null;save();return render()}
+  if(a==='kadd'){const p={id:'pl'+Date.now(),name:'Yeni konum',addr:'',url:''};(S.settings.places=places()).push(p);konumEdit=p.id;save();return render()}
+  if(a==='kgo'){const p=places().find(x=>x.id===id),ph=String((document.getElementById('k-phone')||{}).value||'').replace(/\D/g,'');if(!p)return;if(ph.length<10){toast('Telefon numarasını yazın (en az 10 rakam)');return}
+    {const l=document.createElement('a');l.href=waLink(ph,konumMsg(p));l.target='_blank';l.rel='noopener';document.body.appendChild(l);l.click();l.remove()}konumSend=null;toast(p.name+' konumu WhatsApp\'ta açıldı');return render()}
   if(a==='shimp'){const r=shImport();toast(`${r.ne} motor eklendi${r.np?', '+r.np+' motorun fiyatı girildi':''}, ${r.nf} klasör açıldı`);return render()}
   if(a==='shimpno'){S.settings.shImp2='gizlendi';save();return render()}
   if(a==='exnew'){exForm={typ:t.dataset.k};exPayKey=null;return render()}
