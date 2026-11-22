@@ -14,7 +14,7 @@ open(R + '/res/xml/shortcuts.xml', 'w').write('''<?xml version="1.0" encoding="u
 sp = R + '/res/values/strings.xml'
 s = open(sp).read()
 if 'sc_asistan' not in s:
-    s = s.replace('</resources>', '    <string name="sc_asistan">Asistan</string>\n    <string name="sc_asistan_uzun">Erenault Asistan</string>\n</resources>')
+    s = s.replace('</resources>', '    <string name="sc_asistan">Asistan</string>\n    <string name="sc_asistan_uzun">Eren Oto Asistan</string>\n</resources>')
     open(sp, 'w').write(s)
 mp = R + '/AndroidManifest.xml'
 m = open(mp).read()
