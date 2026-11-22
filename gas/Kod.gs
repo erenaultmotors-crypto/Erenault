@@ -1,5 +1,5 @@
 /**
- * Erenault · Eren Oto motor teklif, satış, iş takibi, stok ve ekip mesajlaşma sistemi
+ * Eren Oto Motor · teklif, satış, iş takibi, stok ve ekip mesajlaşma sistemi
  * Google Apps Script sunucu kodu (Kod.gs) · sürüm 3
  *
  * Sürüm 3: hazır motor paketleri, parça stoğu, tedarikçi siparişleri, esnaflar,
@@ -21,8 +21,9 @@
 
 var TZ = 'Europe/Istanbul';
 var CORE = { getirdi: 1, sonra: 1, yok: 1 };
-var COLLS = ['pos', 'supPays', 'stockLog', 'esnaf', 'units', 'prepOrders', 'unitLog', 'aiPending', 'aiLog', 'tasks', 'aiMem', 'reminders', 'expenses', 'trash'];
-var OWNER_ONLY = ['supPays', 'aiPending', 'aiLog', 'aiMem', 'reminders', 'expenses', 'trash'];
+var COLLS = ['pos', 'supPays', 'stockLog', 'esnaf', 'units', 'prepOrders', 'unitLog', 'aiPending', 'aiLog', 'tasks', 'aiMem', 'reminders', 'expenses', 'trash', 'folders', 'fitems', 'site', 'sitePubs'];
+var OWNER_ONLY = ['supPays', 'aiPending', 'aiLog', 'aiMem', 'reminders', 'expenses', 'trash', 'site', 'sitePubs'];
+var SHARED_FOLDER = ['folders', 'fitems'];   // herkes ekler; sadece ekleyen ve patron siler
 var TASK_W = ['status', 'hist', 'photo', 'wSeen', 'seenAt', 'doneAt', 'pSeen', 'doneQty', 'unitsAdded'];
 var KCOLS = ['Tür', 'Zaman', 'Özet', 'id', 'veri (dokunmayın)'];
 
@@ -42,7 +43,7 @@ function doGet(e) {
   var t = HtmlService.createTemplateFromFile('Sayfa');
   t.boot = JSON.stringify(boot).replace(/</g, '\\u003c');
   return t.evaluate()
-    .setTitle(boot.mode === 'app' ? 'Erenault' : 'Eren Oto Motor Teklifi')
+    .setTitle(boot.mode === 'app' ? 'Eren Oto Motor' : 'Eren Oto Motor Teklifi')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
 }
 
@@ -53,7 +54,7 @@ function doPost(e) {
   try {
     var b = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     var fns = { apiPublicBoot: apiPublicBoot, apiAiThink: apiAiThink, apiPushToken: apiPushToken, apiBoot: apiBoot, apiSetup: apiSetup, apiLogin: apiLogin, apiPull: apiPull, apiPush: apiPush, apiUpload: apiUpload, apiFile: apiFile,
-      apiPubFile: apiPubFile, apiSigData: apiSigData, apiSavePdf: apiSavePdf, apiAiToken: apiAiToken, apiSubmitQuote: apiSubmitQuote, apiSign: apiSign };
+      apiPubFile: apiPubFile, apiSigData: apiSigData, apiSavePdf: apiSavePdf, apiAiToken: apiAiToken, apiSubmitQuote: apiSubmitQuote, apiSign: apiSign, apiSiteData: apiSiteData };
     if (!fns[b.fn]) throw new Error('NOFN');
     out = { ok: true, r: fns[b.fn].apply(null, b.args || []) };
   } catch (err) { out = { ok: false, e: String(err && err.message || err) }; }
@@ -532,7 +533,7 @@ function apiUpload(a, dataUrl, name) {
   authU(a);
   var m = String(dataUrl || '').match(/^data:([^;,]+)?(;base64)?,(.*)$/);
   if (!m || !m[2]) throw new Error('BADFILE');
-  if (m[3].length > 16000000) throw new Error('TOOBIG');
+  if (m[3].length > 36000000) throw new Error('TOOBIG');
   var blob = Utilities.newBlob(Utilities.base64Decode(m[3]), m[1] || 'application/octet-stream', clip(name, 120) || 'dosya');
   var f = mediaFolder().createFile(blob);
   return 'drv:' + f.getId();
@@ -742,6 +743,14 @@ function saveStock(m) {
   sh.getRange(4, 2).setValue(JSON.stringify(m));
 }
 
+function bigWrite(oldId, js) {
+  if (oldId) { try { DriveApp.getFileById(oldId).setContent(js); return oldId; } catch (e) { } }
+  return mediaFolder().createFile('kayit-' + Date.now() + '.json', js, 'application/json').getId();
+}
+function bigRead(stub) {
+  try { var r = JSON.parse(DriveApp.getFileById(stub._big).getBlob().getDataAsString()); r._bigId = stub._big; return r; } catch (e) { return { id: stub.id, t: stub.t, _bigId: stub._big }; }
+}
+
 function readStore() {
   var sh = sheetNamed('Kayıtlar'), n = sh.getLastRow(), by = {}, lists = {};
   if (n >= 2) {
@@ -749,7 +758,7 @@ function readStore() {
     for (var i = 0; i < v.length; i++) {
       var raw = v[i][KCOLS.length - 1];
       if (!raw) continue;
-      try { var r = JSON.parse(raw), c = String(v[i][0]); by[c + '|' + r.id] = { row: i + 2, c: c, rec: r }; } catch (e) { }
+      try { var r = JSON.parse(raw), c = String(v[i][0]); if (r._big) r = bigRead(r); by[c + '|' + r.id] = { row: i + 2, c: c, rec: r }; } catch (e) { }
     }
   }
   return {
@@ -761,8 +770,12 @@ function readStore() {
     },
     put: function (c, rec) {
       rec.rev = Date.now();
-      var row = [c, rec.t || new Date().toISOString(), storeSummary(c, rec), rec.id, JSON.stringify(rec)];
-      var x = by[c + '|' + rec.id];
+      var x = by[c + '|' + rec.id], oldBig = x && x.rec && x.rec._bigId;
+      delete rec._bigId;
+      var js = JSON.stringify(rec), bigId = null;
+      if (js.length > 45000) { bigId = bigWrite(oldBig, js); js = JSON.stringify({ id: rec.id, t: rec.t, _big: bigId }); }
+      var row = [c, rec.t || new Date().toISOString(), storeSummary(c, rec), rec.id, js];
+      if (bigId) rec._bigId = bigId;
       if (x) { sh.getRange(x.row, 1, 1, KCOLS.length).setValues([row]); x.rec = rec; }
       else {
         var r2 = sh.getLastRow() + 1;
@@ -787,6 +800,10 @@ function storeSummary(c, r) {
   if (c === 'unitLog') return (r.by || '') + ': ' + r.n + ' adet ' + (eng[r.eid] || '');
   if (c === 'prepOrders') return r.qty + ' adet ' + (eng[r.eid] || '') + ' · ' + (r.done || 0) + ' hazır';
   if (c === 'esnaf') return (r.shop || '') + ' · ' + (r.name || '');
+  if (c === 'folders') return 'Klasör · ' + (r.name || '');
+  if (c === 'fitems') return ({ note: 'Not', photo: 'Fotoğraf', video: 'Video' })[r.kind] + ' · ' + String(r.text || r.name || '').slice(0, 80);
+  if (c === 'site') return 'Site · ' + (r.typ === 'blog' ? 'Blog · ' + (r.title || '') : r.id);
+  if (c === 'sitePubs') return 'Yayın · ' + (r.t || '');
   if (c === 'supPays') return (sup[r.sup] || '') + ' · ' + money(r.amt);
   if (c === 'aiLog') return r.title || '';
   if (c === 'aiMem') return r.text || '';
@@ -805,6 +822,7 @@ function getCatalogCached() { if (!_catCache) _catCache = getCatalog(); return _
 function collView(n, r, u, role) {
   if (role === 'owner') return r;
   if (OWNER_ONLY.indexOf(n) >= 0) return null;
+  if (SHARED_FOLDER.indexOf(n) >= 0) return r;
   if (role === 'worker') {
     if (n === 'tasks') return r.to === u.id ? r : null;
     if (!canPrep(u) || ['units', 'prepOrders', 'unitLog'].indexOf(n) < 0) return null;
@@ -859,9 +877,17 @@ function pushColls(u, role, colls) {
         if (rec) st.put(n, rec);
         return;
       }
+      if (SHARED_FOLDER.indexOf(n) >= 0 && role !== 'owner') {
+        if (cur && cur.by !== u.id) { if (n === 'folders') { rec = JSON.parse(JSON.stringify(cur)); rec.upd = it.upd || now; st.put(n, rec); } return; }
+        rec = it; rec.by = u.id;
+        st.put(n, rec);
+        if (!cur && n === 'fitems') pushTo('owner', u.name + ' Motor Klasörü\'ne ekledi', ({ note: 'Not', photo: 'Fotoğraf', video: 'Video' })[rec.kind] || '', 'klasor');
+        return;
+      }
       if (role === 'owner') {
         rec = it;
         if (n === 'stockLog' && cur) rec = null; // hareketler değişmez
+        if (n === 'sitePubs' && !cur) sitePublishMedia(rec);
         if (n === 'pos') rec.total = poTotalSrv(rec, parts);
       } else if (role === 'staff') {
         if (OWNER_ONLY.indexOf(n) >= 0) rec = null;
@@ -893,10 +919,16 @@ function pushColls(u, role, colls) {
       if (!cur && n === 'pos' && rec.status === 'onay') pushTo('owner', 'Onay bekleyen sipariş', (rec.reqBy || '') + ' · ' + (sups[rec.sup] ? sups[rec.sup].name : '') + ' · ' + (rec.lines || []).map(function (l) { return l.name + ' ' + l.qty; }).join(', '), 'stok');
       if (!cur && n === 'unitLog' && role !== 'owner') pushTo('owner', rec.by + ': ' + rec.n + ' motor hazırlandı', (engines[rec.eid] || {}).name || '', 'stok');
     });
+    if (role !== 'owner' && SHARED_FOLDER.indexOf(n) >= 0 && ch.dl && ch.dl.length) {
+      if (!meta) meta = getMeta();
+      meta.gone = meta.gone || [];
+      ch.dl.forEach(function (id) { var c0 = st.get(n, id); if (!c0 || c0.by !== u.id) return; st.del(n, id); meta.gone.push({ c: n, id: id, t: Date.now() }); trashMedia(c0); });
+      meta.gone = meta.gone.slice(-300);
+    }
     if (role === 'owner' && ch.dl && ch.dl.length) {
       if (!meta) meta = getMeta();
       meta.gone = meta.gone || [];
-      ch.dl.forEach(function (id) { if (n === 'stockLog') return; st.del(n, id); meta.gone.push({ c: n, id: id, t: Date.now() }); });
+      ch.dl.forEach(function (id) { if (n === 'stockLog') return; var c0 = n === 'fitems' ? st.get(n, id) : null; st.del(n, id); meta.gone.push({ c: n, id: id, t: Date.now() }); if (c0) trashMedia(c0); });
       meta.gone = meta.gone.slice(-300);
     }
   });
@@ -1016,7 +1048,7 @@ function pushTo(uids, title, body, tab) {
 // Bildirimleri denemek için: Apps Script'te bu işlevi seçip Çalıştır'a basın
 function bildirimDene() {
   var n = 0; getUsers().forEach(function (u) { if (props().getProperty('PT_' + u.id)) n++; });
-  pushTo('all', 'Erenault', 'Bildirimler çalışıyor ✓', 'bildirim');
+  pushTo('all', 'Eren Oto Motor', 'Bildirimler çalışıyor ✓', 'bildirim');
   console.log('Bildirim kaydı olan kişi sayısı: ' + n);
 }
 
@@ -1041,7 +1073,7 @@ function geminiTry(models, system, prompt, maxTok) {
   throw last || new Error('AIERR boş cevap');
 }
 
-var DANISMAN = 'Sen Eren Oto (Erenault Motors; Renault ticari araç motoru revizyonu yapıp satan atölye) için deneyimli bir işletme danışmanısın. ' +
+var DANISMAN = 'Sen Eren Oto Motor (Renault ticari araç motoru revizyonu yapıp satan atölye) için deneyimli bir işletme danışmanısın. ' +
   'Güncel verilere bakarak patrona somut, uygulanabilir öneriler ver. Rakamları ve isimleri sadece veriden al, asla uydurma; veri yoksa söyle. ' +
   'Türkçe, sade, konuşur gibi yaz; madde işareti ve başlık kullanma. En fazla 8 cümle.';
 
@@ -1109,7 +1141,7 @@ function sabahRaporu() {
     txt = parts.join(' ');
   }
   var meta = getMeta(); meta.report = { t: new Date().toISOString(), text: txt }; saveMeta(meta);
-  pushTo('owner', '☀️ Günaydın · Erenault', txt.replace(/^Günaydın[.,!]?\s*/i, '').slice(0, 180), 'asistan');
+  pushTo('owner', '☀️ Günaydın · Eren Oto Motor', txt.replace(/^Günaydın[.,!]?\s*/i, '').slice(0, 180), 'asistan');
   return txt;
 }
 
@@ -1161,7 +1193,7 @@ function props() { return PropertiesService.getScriptProperties(); }
 function ss() {
   var id = props().getProperty('SHEET_ID');
   if (id) { try { return SpreadsheetApp.openById(id); } catch (e) { } }
-  var s = SpreadsheetApp.create('Eren Oto Motor Kayıtları');  // Erenault
+  var s = SpreadsheetApp.create('Eren Oto Motor Kayıtları');  // Eren Oto Motor
   props().setProperty('SHEET_ID', s.getId());
   var sh = s.getSheets()[0];
   sh.setName('Satışlar');
@@ -1397,4 +1429,46 @@ function notify(subject, body) {
     if (!to) return;
     MailApp.sendEmail(to, 'Eren Oto · ' + subject, body + '\n\nEkip uygulaması: ' + ScriptApp.getService().getUrl() + '?p=panel');
   } catch (e) { }
+}
+
+
+/* ---------- Motor Klasörü ve Web Sitesi ---------- */
+
+// Silinen klasör medyasını Drive çöp kutusuna taşı (30 gün içinde geri alınabilir)
+function trashMedia(it) {
+  if (!it || !it.ref || String(it.ref).indexOf('drv:') !== 0) return;
+  try { DriveApp.getFileById(String(it.ref).slice(4)).setTrashed(true); } catch (e) { }
+}
+
+// Yayınlanan fotoğraf ve videolar "linke sahip herkes görüntüleyebilir" olur ve
+// "Eren Oto Web Sitesi" klasörüne de eklenir
+function siteFolder() {
+  var id = props().getProperty('SITE_FOLDER_ID');
+  if (id) { try { return DriveApp.getFolderById(id); } catch (e) { } }
+  var f = DriveApp.createFolder('Eren Oto Web Sitesi');
+  props().setProperty('SITE_FOLDER_ID', f.getId());
+  return f;
+}
+function sitePublishMedia(pub) {
+  var refs = (pub.refs || []).filter(function (r) { return String(r).indexOf('drv:') === 0; }), sf = null;
+  refs.forEach(function (r) {
+    try {
+      var f = DriveApp.getFileById(String(r).slice(4));
+      f.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      if (!sf) sf = siteFolder();
+      var inSite = false, it = f.getParents();
+      while (it.hasNext()) if (it.next().getId() === sf.getId()) inSite = true;
+      if (!inSite) sf.addFile(f);
+    } catch (e) { }
+  });
+}
+
+// Web sitesinin okuyacağı herkese açık veri: SADECE son yayınlanmış site içeriği.
+// Maliyet, müşteri, kâr, stok, çalışan gibi hiçbir iç bilgi burada yoktur.
+function apiSiteData() {
+  var L = readStore().list('sitePubs').slice().sort(function (a, b) { return String(a.t).localeCompare(String(b.t)); });
+  var P = L[L.length - 1];
+  if (!P || !P.data) return null;
+  var js = String(P.data).replace(/drv:([\w-]+)/g, function (m, id) { return 'https://lh3.googleusercontent.com/d/' + id; });
+  return { yayin: P.t, veri: JSON.parse(js) };
 }
